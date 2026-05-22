@@ -9,6 +9,9 @@ import {
   removeCarve,
   removeObject,
   removeWall,
+  updateCarve,
+  updateObject,
+  updateWall,
   type Map,
   type ObjectTool,
 } from "./state";
@@ -29,6 +32,17 @@ type Drag = { x0: number; y0: number; x1: number; y1: number };
 
 type WallDraft = { start: [number, number]; cursor: [number, number] };
 
+type MoveOriginal =
+  | { kind: "rect"; rect: [number, number, number, number] }
+  | { kind: "at"; at: [number, number] }
+  | { kind: "segment"; segment: [[number, number], [number, number]] };
+
+type MoveDrag = {
+  selection: Selection;
+  startCell: [number, number];
+  original: MoveOriginal;
+};
+
 type SelectionKind = "carve" | "object" | "wall";
 export type Selection = { kind: SelectionKind; id: string };
 
@@ -39,6 +53,57 @@ type Props = {
   selection: Selection | null;
   setSelection: (s: Selection | null) => void;
 };
+
+function entityPosition(map: Map, sel: Selection): MoveOriginal | null {
+  const layer = map.layers[0];
+  if (sel.kind === "carve") {
+    const c = layer.carves.find((c) => c.id === sel.id);
+    if (!c || !isRectCarve(c)) return null;
+    return { kind: "rect", rect: [...c.rect] as [number, number, number, number] };
+  }
+  if (sel.kind === "object") {
+    const o = (layer.objects ?? []).find((o) => o.id === sel.id);
+    return o ? { kind: "at", at: [o.at[0], o.at[1]] } : null;
+  }
+  const w = (layer.walls ?? []).find((w) => w.id === sel.id);
+  return w
+    ? {
+        kind: "segment",
+        segment: [
+          [w.segment[0][0], w.segment[0][1]],
+          [w.segment[1][0], w.segment[1][1]],
+        ],
+      }
+    : null;
+}
+
+function moveEntity(
+  map: Map,
+  sel: Selection,
+  original: MoveOriginal,
+  dx: number,
+  dy: number,
+): Map {
+  if (dx === 0 && dy === 0) return map;
+  if (sel.kind === "carve" && original.kind === "rect") {
+    const [x, y, w, h] = original.rect;
+    return updateCarve(map, sel.id, { rect: [x + dx, y + dy, w, h] });
+  }
+  if (sel.kind === "object" && original.kind === "at") {
+    const [x, y] = original.at;
+    return updateObject(map, sel.id, { at: [x + dx, y + dy] });
+  }
+  if (sel.kind === "wall" && original.kind === "segment") {
+    const [[ax, ay], [bx, by]] = original.segment;
+    return updateWall(map, sel.id, {
+      segment: [
+        [ax + dx, ay + dy],
+        [bx + dx, by + dy],
+      ],
+    });
+  }
+  return map;
+}
 
 function pointToSegmentDist(
   px: number, py: number,
@@ -62,6 +127,7 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
   const [svg, setSvg] = useState<string>("");
   const [drag, setDrag] = useState<Drag | null>(null);
   const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
+  const [moveDrag, setMoveDrag] = useState<MoveDrag | null>(null);
 
   // Pan/zoom transform.
   const [zoom, setZoom] = useState(1);
@@ -220,7 +286,15 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
     }
 
     if (tool === "select") {
-      setSelection(hitTest(x, y, e));
+      const hit = hitTest(x, y, e);
+      setSelection(hit);
+      if (hit) {
+        const original = entityPosition(map, hit);
+        if (original) {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setMoveDrag({ selection: hit, startCell: [x, y], original });
+        }
+      }
       return;
     }
 
@@ -265,6 +339,14 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
       });
       return;
     }
+    if (moveDrag) {
+      const { x, y } = cellFromEvent(e);
+      const dx = x - moveDrag.startCell[0];
+      const dy = y - moveDrag.startCell[1];
+      const next = moveEntity(map, moveDrag.selection, moveDrag.original, dx, dy);
+      if (next !== map) setMap(next);
+      return;
+    }
     if (drag) {
       const { x, y } = cellFromEvent(e);
       if (x === drag.x1 || y === drag.y1) setDrag({ ...drag, x1: x, y1: y });
@@ -283,6 +365,11 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
     if (panDrag) {
       e.currentTarget.releasePointerCapture(e.pointerId);
       setPanDrag(null);
+      return;
+    }
+    if (moveDrag) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      setMoveDrag(null);
       return;
     }
     if (!drag) return;
@@ -389,6 +476,7 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
       onPointerCancel={() => {
         setDrag(null);
         setPanDrag(null);
+        setMoveDrag(null);
       }}
     >
       <div
