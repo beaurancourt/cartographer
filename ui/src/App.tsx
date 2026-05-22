@@ -20,6 +20,8 @@ export function App() {
   const [snap, setSnap] = useState<SnapMode>(1);
   const [view, setView] = useState<View>("gm");
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [fitToken, setFitToken] = useState(0);
+  const fit = useCallback(() => setFitToken((t) => t + 1), []);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,10 +75,11 @@ export function App() {
       resetMap(m);
       setPath(null);
       setSelection(null);
+      fit();
     } catch (e) {
       setError(String(e));
     }
-  }, [resetMap]);
+  }, [resetMap, fit]);
 
   async function handleOpen() {
     setError(null);
@@ -90,6 +93,7 @@ export function App() {
       resetMap(m);
       setPath(picked);
       setSelection(null);
+      fit();
     } catch (e) {
       setError(String(e));
     }
@@ -151,6 +155,9 @@ export function App() {
         </button>
         <button onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">
           ↷
+        </button>
+        <button onClick={fit} disabled={!map} title="Fit map to viewport">
+          Fit
         </button>
         <div className="divider" />
         <ToolButton current={tool} value="rect" onClick={setTool} hint="R">
@@ -238,6 +245,7 @@ export function App() {
             view={view}
             selection={selection}
             setSelection={setSelection}
+            fitToken={fitToken}
           />
           <Inspector
             map={map}

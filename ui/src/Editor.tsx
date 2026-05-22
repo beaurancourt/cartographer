@@ -5,6 +5,7 @@ import {
   addObject,
   addWall,
   isRectCarve,
+  mapBbox,
   nextId,
   removeCarve,
   removeObject,
@@ -61,6 +62,8 @@ type Props = {
   view: View;
   selection: Selection | null;
   setSelection: (s: Selection | null) => void;
+  /// Bumping this counter triggers a fit-to-view inside the editor.
+  fitToken: number;
 };
 
 function entityPosition(map: Map, sel: Selection): MoveOriginal | null {
@@ -140,6 +143,7 @@ export function Editor({
   view,
   selection,
   setSelection,
+  fitToken,
 }: Props) {
   const step = 1 / snap;
   const cell = map.grid.cell_size;
@@ -185,6 +189,37 @@ export function Editor({
       window.removeEventListener("keyup", up);
     };
   }, []);
+
+  // Fit-to-view on demand. Bumping `fitToken` (from the toolbar Fit button
+  // or after Open/New) recenters and rescales so the map's bbox fills the
+  // visible viewport with a small margin.
+  useEffect(() => {
+    if (fitToken === 0) return; // initial mount; nothing to fit
+    const wrap = wrapperRef.current;
+    if (!wrap) return;
+    const bbox = mapBbox(map);
+    const rect = wrap.getBoundingClientRect();
+    if (!bbox || rect.width === 0 || rect.height === 0) {
+      // Empty map: reset to identity at top-left.
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    const margin = 0.85;
+    const bboxPxW = bbox.w * cell;
+    const bboxPxH = bbox.h * cell;
+    const newZoom = Math.min(
+      4,
+      Math.max(0.25, Math.min((rect.width * margin) / bboxPxW, (rect.height * margin) / bboxPxH)),
+    );
+    const bboxCenterX = (bbox.x + bbox.w / 2) * cell;
+    const bboxCenterY = (bbox.y + bbox.h / 2) * cell;
+    setZoom(newZoom);
+    setPan({
+      x: rect.width / 2 - bboxCenterX * newZoom,
+      y: rect.height / 2 - bboxCenterY * newZoom,
+    });
+  }, [fitToken, map, cell]);
 
   // Wheel zoom (Cmd/Ctrl + wheel) around cursor.
   useEffect(() => {

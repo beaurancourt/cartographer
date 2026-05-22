@@ -193,6 +193,45 @@ function updateAllLayers(map: Map, fn: (l: Layer) => Layer): Map {
   return { ...map, layers: map.layers.map(fn) };
 }
 
+/// Bounding box of all map content in *cell* coordinates. Walks every
+/// layer regardless of gm_only — the editor wants a stable bbox that
+/// doesn't shift when the GM/Player view toggles.
+export function mapBbox(map: Map): { x: number; y: number; w: number; h: number } | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let any = false;
+
+  function grow(x: number, y: number, x2: number, y2: number) {
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x2 > maxX) maxX = x2;
+    if (y2 > maxY) maxY = y2;
+    any = true;
+  }
+
+  for (const layer of map.layers) {
+    for (const c of layer.carves) {
+      if (isRectCarve(c)) {
+        const [x, y, w, h] = c.rect;
+        grow(x, y, x + w, y + h);
+      } else {
+        for (const p of c.path) grow(p[0], p[1], p[0] + 1, p[1] + 1);
+      }
+    }
+    for (const w of layer.walls ?? []) {
+      const [[ax, ay], [bx, by]] = w.segment;
+      grow(Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by));
+    }
+    for (const o of layer.objects ?? []) {
+      grow(o.at[0], o.at[1], o.at[0] + 1, o.at[1] + 1);
+    }
+  }
+  if (!any) return null;
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
 /// Find which layer an entity lives in. -1 if not found.
 export function findEntityLayer(map: Map, id: string): number {
   for (let i = 0; i < map.layers.length; i++) {
