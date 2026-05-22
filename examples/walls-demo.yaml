@@ -5,28 +5,24 @@ grid:
 background:
   style: ink
 
-# Reproducing the Arden-Vul reference geometry exactly:
-#   r1: 4×4 top-left
-#   r2: 4×3 to the east, touching r1's east wall but offset 1 cell south
-#       → r1 has an exposed east wall at y∈[1,2] above r2, and a shared
-#         wall at x=5, y∈[2,5] (drawn explicitly so it's visible)
-#   r3: 4×6 below, touching r2's south wall, offset 1 cell east
-#       → shared wall at y=5, x∈[6,9]
-#   Doors sit ON the walls (half-cell positioning so the door center
-#   lands exactly on the wall line):
-#     d1 vertical pill on the vertical wall (facing: ns → 90° rotation)
-#     d2 horizontal "S" marker on the horizontal wall (no rotation)
+# Iterating toward the reference. Changes from last pass:
+#   - Hall reduced from 3 cells (hall_a + gap + hall_b) to 1 cell — just
+#     the door's gap cell between r1's east wall and r2's west wall.
+#   - r2 shape flipped: top now narrower-on-left, bottom full width,
+#     so the missing corner of r2's bounding box is at the top-right (NE).
+#   - r3 moved up to y=7 so it actually shares a horizontal edge with
+#     r2_bot (y=7, x∈[9, 11]) for the wall + secret door to bridge.
 
 layers:
   - id: main
     carves:
-      - { id: r1, rect: [1, 1, 4, 4] }
-      - { id: r2, rect: [5, 2, 4, 3] }
-      - { id: r3, rect: [6, 5, 4, 6] }
+      - { id: r1,     rect: [1, 1, 5, 5] }
+      - { id: r2_top, rect: [7, 2, 2, 2] }     # 2×2 top-left of r2
+      - { id: r2_bot, rect: [7, 4, 4, 3] }     # 4×3 bottom of r2 (extends right)
+      - { id: r3,     rect: [9, 7, 5, 5] }     # touches r2_bot at y=7
     walls:
-      - { id: w1, segment: [[5, 2], [5, 5]] }   # vertical, r1 ↔ r2
-      - { id: w2, segment: [[6, 5], [9, 5]] }   # horizontal, r2 ↔ r3
+      - { id: w1, segment: [[9, 7], [11, 7]] }   # r2 ↔ r3 shared edge
     objects:
-      - { id: d1, type: door,        at: [4.5, 2.5], facing: ns }   # on w1
-      - { id: d2, type: secret-door, at: [7,   4.5], facing: ew }   # on w2
-      - { id: s1, type: stairs-up,   at: [1,   2],   facing: w }
+      - { id: d1, type: door,        at: [6,   3],   facing: ew }   # 1-cell gap between r1 and r2_top
+      - { id: d2, type: secret-door, at: [9.5, 6.5], facing: ew }   # on w1
+      - { id: s1, type: stairs-up,   at: [1.5, 3],   facing: w }
