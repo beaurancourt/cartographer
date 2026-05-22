@@ -97,6 +97,22 @@ export function removeWall(map: Map, id: string): Map {
   }));
 }
 
+export function updateCarve(map: Map, id: string, patch: Partial<RectCarve>): Map {
+  return updateLayer(map, (l) => ({
+    ...l,
+    carves: l.carves.map((c) =>
+      c.id === id && isRectCarve(c) ? { ...c, ...patch } : c,
+    ),
+  }));
+}
+
+export function updateWall(map: Map, id: string, patch: Partial<Wall>): Map {
+  return updateLayer(map, (l) => ({
+    ...l,
+    walls: (l.walls ?? []).map((w) => (w.id === id ? { ...w, ...patch } : w)),
+  }));
+}
+
 function updateLayer(map: Map, fn: (l: Layer) => Layer): Map {
   return {
     ...map,

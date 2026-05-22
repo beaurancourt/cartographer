@@ -194,6 +194,41 @@ body {
   font-size: 0.85rem;
 }
 
+.inspector .coord-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+}
+
+.inspector .field.num {
+  gap: 0.2rem;
+}
+
+.inspector .field.num input {
+  background: #1c1d20;
+  color: var(--fg);
+  border: 1px solid #00000044;
+  border-radius: 3px;
+  padding: 0.3rem 0.4rem;
+  font: inherit;
+  font-family: ui-monospace, "SF Mono", monospace;
+  width: 100%;
+}
+
+.inspector .field.num input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.inspector kbd {
+  background: #1c1d20;
+  border: 1px solid #00000066;
+  border-radius: 3px;
+  padding: 0 0.3rem;
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 0.75rem;
+}
+
 .inspector .facing-row {
   display: flex;
   flex-wrap: wrap;
