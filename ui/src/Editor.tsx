@@ -58,14 +58,70 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
   const W = COLS * cell;
   const H = ROWS * cell;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const [svg, setSvg] = useState<string>("");
   const [drag, setDrag] = useState<Drag | null>(null);
   const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
+
+  // Pan/zoom transform.
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [panDrag, setPanDrag] = useState<
+    { clientX: number; clientY: number; baseX: number; baseY: number } | null
+  >(null);
+  const [spacePressed, setSpacePressed] = useState(false);
 
   // Drop wall draft if the user switches away from the wall tool.
   useEffect(() => {
     if (tool !== "wall") setWallDraft(null);
   }, [tool]);
+
+  // Space-key tracking for pan.
+  useEffect(() => {
+    function down(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.code === "Space") {
+        if (!e.repeat) setSpacePressed(true);
+        e.preventDefault();
+      }
+    }
+    function up(e: KeyboardEvent) {
+      if (e.code === "Space") setSpacePressed(false);
+    }
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, []);
+
+  // Wheel zoom (Cmd/Ctrl + wheel) around cursor.
+  useEffect(() => {
+    const wrap = wrapperRef.current;
+    if (!wrap) return;
+    function onWheel(e: WheelEvent) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const wrapRect = wrap!.getBoundingClientRect();
+      const mx = e.clientX - wrapRect.left;
+      const my = e.clientY - wrapRect.top;
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      setZoom((zoomPrev) => {
+        const next = Math.max(0.25, Math.min(4, zoomPrev * factor));
+        setPan((panPrev) => {
+          // Keep the same SVG point under the cursor.
+          const svgX = (mx - panPrev.x) / zoomPrev;
+          const svgY = (my - panPrev.y) / zoomPrev;
+          return { x: mx - svgX * next, y: my - svgY * next };
+        });
+        return next;
+      });
+    }
+    wrap.addEventListener("wheel", onWheel, { passive: false });
+    return () => wrap.removeEventListener("wheel", onWheel);
+  }, []);
 
   // Live render via Rust on every map change. For a fixed editor canvas we
   // force the viewBox to [0, 0, W, H] and skip the background so the
@@ -89,9 +145,11 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
   }, [map, W, H]);
 
   function pxFromEvent(e: React.PointerEvent): { px: number; py: number } {
-    const wrap = wrapperRef.current;
-    if (!wrap) return { px: 0, py: 0 };
-    const rect = wrap.getBoundingClientRect();
+    // Use the inner content's screen rect — it reflects the pan/zoom
+    // transform so the conversion stays valid under any view state.
+    const inner = contentRef.current;
+    if (!inner) return { px: 0, py: 0 };
+    const rect = inner.getBoundingClientRect();
     const sx = W / rect.width;
     const sy = H / rect.height;
     return {
@@ -140,6 +198,19 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // Pan: middle-mouse OR space+left.
+    if (e.button === 1 || (spacePressed && e.button === 0)) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setPanDrag({
+        clientX: e.clientX,
+        clientY: e.clientY,
+        baseX: pan.x,
+        baseY: pan.y,
+      });
+      e.preventDefault();
+      return;
+    }
+
     const { x, y } = cellFromEvent(e);
 
     if (tool === "rect") {
@@ -187,6 +258,13 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (panDrag) {
+      setPan({
+        x: panDrag.baseX + (e.clientX - panDrag.clientX),
+        y: panDrag.baseY + (e.clientY - panDrag.clientY),
+      });
+      return;
+    }
     if (drag) {
       const { x, y } = cellFromEvent(e);
       if (x === drag.x1 || y === drag.y1) setDrag({ ...drag, x1: x, y1: y });
@@ -202,6 +280,11 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
   }
 
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (panDrag) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      setPanDrag(null);
+      return;
+    }
     if (!drag) return;
     e.currentTarget.releasePointerCapture(e.pointerId);
     const x = Math.min(drag.x0, drag.x1);
@@ -282,14 +365,17 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
     };
   })();
 
-  const cursorClass =
-    tool === "select"
-      ? "cursor-select"
-      : tool === "rect"
-        ? "cursor-cross"
-        : tool === "wall"
+  const cursorClass = panDrag
+    ? "cursor-grabbing"
+    : spacePressed
+      ? "cursor-grab"
+      : tool === "select"
+        ? "cursor-select"
+        : tool === "rect"
           ? "cursor-cross"
-          : "cursor-place";
+          : tool === "wall"
+            ? "cursor-cross"
+            : "cursor-place";
 
   return (
     <div
@@ -300,10 +386,22 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={() => setDrag(null)}
+      onPointerCancel={() => {
+        setDrag(null);
+        setPanDrag(null);
+      }}
     >
+      <div
+        ref={contentRef}
+        className="canvas-content"
+        style={{
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          width: W,
+          height: H,
+        }}
+      >
       {/* Layer 1: black background + faint void grid so the user can plan placement. */}
-      <svg className="layer-bg" viewBox={`0 0 ${W} ${H}`}>
+      <svg className="layer-bg" width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
         <rect x={0} y={0} width={W} height={H} fill="#000000" />
         <g stroke="#1f1f22" strokeWidth={0.6}>
           {Array.from({ length: COLS + 1 }).map((_, i) => (
@@ -319,7 +417,7 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
       <div className="layer-render" dangerouslySetInnerHTML={{ __html: svg }} />
 
       {/* Layer 3: drag preview + selection overlay. */}
-      <svg className="layer-overlay" viewBox={`0 0 ${W} ${H}`}>
+      <svg className="layer-overlay" width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
         {dragPreview && (
           <rect
             x={dragPreview.x}
@@ -372,6 +470,7 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
           </>
         )}
       </svg>
+      </div>
     </div>
   );
 }

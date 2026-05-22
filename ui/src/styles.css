@@ -90,6 +90,7 @@ body {
   outline: none;
   width: 100%;
   height: 100%;
+  touch-action: none;
 }
 
 .editor.cursor-cross {
@@ -101,6 +102,19 @@ body {
 .editor.cursor-place {
   cursor: copy;
 }
+.editor.cursor-grab {
+  cursor: grab;
+}
+.editor.cursor-grabbing {
+  cursor: grabbing;
+}
+
+.editor .canvas-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
 
 .editor .layer-bg,
 .editor .layer-render,
@@ -108,17 +122,28 @@ body {
 .editor .layer-overlay {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
   pointer-events: none;
-}
-
-.editor .layer-render {
   display: block;
 }
 
 .toolbar .tool {
   padding: 0.35rem 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.toolbar .hint-key {
+  opacity: 0.55;
+  font-size: 0.7rem;
+  padding: 0 0.25rem;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  line-height: 1.2;
+}
+
+.toolbar .tool.active .hint-key {
+  opacity: 0.85;
 }
 
 .main {

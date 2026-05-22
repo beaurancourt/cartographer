@@ -15,14 +15,42 @@ export function App() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Don't intercept while typing in an input/textarea/contenteditable.
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+
       const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
-      if (e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      } else if ((e.key === "z" && e.shiftKey) || e.key === "y") {
-        e.preventDefault();
-        redo();
+      if (meta) {
+        if (e.key === "z" && !e.shiftKey) {
+          e.preventDefault();
+          undo();
+        } else if ((e.key === "z" && e.shiftKey) || e.key === "y") {
+          e.preventDefault();
+          redo();
+        }
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case "r": setTool("rect"); break;
+        case "w": setTool("wall"); break;
+        case "v": setTool("select"); break;
+        case "d": setTool("door"); break;
+        case "s": setTool("secret-door"); break;
+        case "l": setTool("locked-door"); break;
+        case "p": setTool("pit-trap"); break;
+        case "u": setTool("stairs-up"); break;
+        case "j": setTool("stairs-down"); break;
+        case "a": setTool("altar"); break;
+        case "f": setTool("fountain"); break;
+        case "c": setTool("column"); break;
       }
     }
     window.addEventListener("keydown", onKey);
@@ -116,18 +144,24 @@ export function App() {
           ↷
         </button>
         <div className="divider" />
-        <ToolButton current={tool} value="rect" onClick={setTool}>
+        <ToolButton current={tool} value="rect" onClick={setTool} hint="R">
           Rectangle
         </ToolButton>
-        <ToolButton current={tool} value="wall" onClick={setTool}>
+        <ToolButton current={tool} value="wall" onClick={setTool} hint="W">
           Wall
         </ToolButton>
-        <ToolButton current={tool} value="select" onClick={setTool}>
+        <ToolButton current={tool} value="select" onClick={setTool} hint="V">
           Select
         </ToolButton>
         <div className="divider" />
         {OBJECT_TOOLS.map((t) => (
-          <ToolButton key={t.id} current={tool} value={t.id} onClick={setTool}>
+          <ToolButton
+            key={t.id}
+            current={tool}
+            value={t.id}
+            onClick={setTool}
+            hint={objectHint(t.id)}
+          >
             {t.label}
           </ToolButton>
         ))}
@@ -172,18 +206,37 @@ function ToolButton({
   value,
   onClick,
   children,
+  hint,
 }: {
   current: Tool;
   value: Tool;
   onClick: (t: Tool) => void;
   children: React.ReactNode;
+  hint?: string;
 }) {
   return (
     <button
       className={current === value ? "tool active" : "tool"}
       onClick={() => onClick(value)}
+      title={hint ? `${value} (${hint})` : value}
     >
       {children}
+      {hint && <span className="hint-key">{hint}</span>}
     </button>
   );
+}
+
+function objectHint(id: string): string | undefined {
+  switch (id) {
+    case "door": return "D";
+    case "secret-door": return "S";
+    case "locked-door": return "L";
+    case "pit-trap": return "P";
+    case "stairs-up": return "U";
+    case "stairs-down": return "J";
+    case "altar": return "A";
+    case "fountain": return "F";
+    case "column": return "C";
+    default: return undefined;
+  }
 }
