@@ -1,19 +1,13 @@
 //! Geometry: convert a layer's carves and door-objects into a unioned floor
-//! [`MultiPolygon`] in cell-coordinate space.
+//! [`MultiPolygon`] in **cell** coordinate space (f64).
 //!
-//! **Carve convention.** Every carve is either a rectangle or an axis-aligned
-//! strip along a polyline. Rect `[x, y, w, h]` occupies float-space
-//! `[x, x+w] × [y, y+h]`. Strip `path: [[5,2],[10,2]], width: 1` treats each
-//! waypoint as a cell coordinate the strip *passes through*, so it covers
-//! cells 5..=10 horizontally — i.e. `x ∈ [5, 11]`. Width is the perpendicular
-//! thickness (extending right for vertical, down for horizontal).
-//!
-//! **Doors.** Door-like objects (`door`, `secret-door`, `locked-door`) punch
-//! a thin slot in the wall, perpendicular to the door's facing. The slot
-//! connects the rooms on either side and the door symbol is drawn across it.
+//! The model stores coordinates as [`C`] (1/12-cell units). Geometry converts
+//! to f64 cells at the boundary via [`C::as_cells`] so the polygon library
+//! gets clean float coords while the source model stays exact.
 
 use crate::model::{Carve, Facing, Layer};
 use crate::symbols::is_door_like;
+use crate::units::C;
 use geo::{BooleanOps, LineString, MultiPolygon, Polygon};
 
 /// Bounding box of all carves in a layer, in cell coordinates.
@@ -66,31 +60,36 @@ pub fn layer_floor(layer: &Layer) -> MultiPolygon<f64> {
 }
 
 /// The thin slot a door object cuts into the wall, perpendicular to its
-/// facing direction. Returned as `(x, y, w, h)` in cell coordinates.
+/// facing direction. Returned as `(x, y, w, h)` in cell coordinates (f64).
 ///
 /// Made `pub(crate)` so the renderer can size door symbols to match.
-pub(crate) fn door_slot_rect(at: [i32; 2], facing: Option<Facing>) -> (f64, f64, f64, f64) {
-    let (x, y) = (at[0] as f64, at[1] as f64);
-    // Slot is 40% of cell on the perpendicular axis, full cell on the parallel axis.
-    let thickness = 0.40;
+pub(crate) fn door_slot_rect(at: [C; 2], facing: Option<Facing>) -> (f64, f64, f64, f64) {
+    let (x, y) = (at[0].as_cells(), at[1].as_cells());
+    // Slot is 50% of cell on the perpendicular axis, full cell on the parallel axis.
+    let thickness = 0.50;
     let inset = (1.0 - thickness) / 2.0;
     match facing {
-        // EW passage → vertical wall → slot stretches horizontally across the gap.
+        // EW passage → vertical wall → horizontal slot.
         Some(Facing::Ew) | Some(Facing::E) | Some(Facing::W) => {
             (x, y + inset, 1.0, thickness)
         }
-        // NS passage (or facing not specified) → horizontal wall → slot stretches vertically.
+        // NS passage (or no facing) → horizontal wall → vertical slot.
         Some(Facing::Ns) | Some(Facing::N) | Some(Facing::S) | None => {
             (x + inset, y, thickness, 1.0)
         }
     }
 }
 
-/// Yield the rectangles that make up a single carve. Rect carves are one
-/// rectangle; path carves are one rectangle per segment.
+/// Rectangles that make up a single carve. Rect carves are one rectangle;
+/// path carves are one rectangle per segment.
 fn carve_rects(carve: &Carve) -> Vec<(f64, f64, f64, f64)> {
     match carve {
-        Carve::Rect(r) => vec![(r.x() as f64, r.y() as f64, r.w() as f64, r.h() as f64)],
+        Carve::Rect(r) => vec![(
+            r.x().as_cells(),
+            r.y().as_cells(),
+            r.w().as_cells(),
+            r.h().as_cells(),
+        )],
         Carve::Path(p) => p
             .path
             .windows(2)
@@ -99,21 +98,23 @@ fn carve_rects(carve: &Carve) -> Vec<(f64, f64, f64, f64)> {
     }
 }
 
-fn segment_bbox(a: [i32; 2], b: [i32; 2], width: u32) -> (f64, f64, f64, f64) {
-    let w = width as f64;
+fn segment_bbox(a: [C; 2], b: [C; 2], width: C) -> (f64, f64, f64, f64) {
+    let (ax, ay) = (a[0].as_cells(), a[1].as_cells());
+    let (bx, by) = (b[0].as_cells(), b[1].as_cells());
+    let w = width.as_cells();
     if a[1] == b[1] {
-        let x_min = a[0].min(b[0]) as f64;
-        let x_max = a[0].max(b[0]) as f64 + 1.0;
-        let y = a[1] as f64;
-        (x_min, y, x_max - x_min, w)
+        // Horizontal segment. Endpoints are cell coords the strip *passes
+        // through*, so the strip extends 1 cell past max(ax, bx).
+        let x_min = ax.min(bx);
+        let x_max = ax.max(bx) + 1.0;
+        (x_min, ay, x_max - x_min, w)
     } else if a[0] == b[0] {
-        let x = a[0] as f64;
-        let y_min = a[1].min(b[1]) as f64;
-        let y_max = a[1].max(b[1]) as f64 + 1.0;
-        (x, y_min, w, y_max - y_min)
+        let y_min = ay.min(by);
+        let y_max = ay.max(by) + 1.0;
+        (ax, y_min, w, y_max - y_min)
     } else {
         // Validator rejects diagonal segments before we reach here.
-        (a[0] as f64, a[1] as f64, 0.0, 0.0)
+        (ax, ay, 0.0, 0.0)
     }
 }
 
@@ -151,12 +152,28 @@ mod tests {
         }
     }
 
-    fn rect(id: &str, r: [i32; 4]) -> Carve {
-        Carve::Rect(RectCarve { id: id.into(), rect: r })
+    fn rect(id: &str, [x, y, w, h]: [i32; 4]) -> Carve {
+        Carve::Rect(RectCarve {
+            id: id.into(),
+            rect: [C::cells(x), C::cells(y), C::cells(w), C::cells(h)],
+        })
     }
 
-    fn path(id: &str, path: Vec<[i32; 2]>, width: u32) -> Carve {
-        Carve::Path(PathCarve { id: id.into(), path, width })
+    fn path(id: &str, pts: Vec<[i32; 2]>, width: i32) -> Carve {
+        Carve::Path(PathCarve {
+            id: id.into(),
+            path: pts.into_iter().map(|p| [C::cells(p[0]), C::cells(p[1])]).collect(),
+            width: C::cells(width),
+        })
+    }
+
+    fn door(id: &str, at: [i32; 2], facing: Facing) -> MapObject {
+        MapObject {
+            id: id.into(),
+            kind: "door".into(),
+            at: [C::cells(at[0]), C::cells(at[1])],
+            facing: Some(facing),
+        }
     }
 
     #[test]
@@ -187,12 +204,7 @@ mod tests {
     fn door_slot_bridges_two_rooms() {
         let l = layer(
             vec![rect("a", [0, 0, 5, 5]), rect("b", [6, 0, 5, 5])],
-            vec![MapObject {
-                id: "d".into(),
-                kind: "door".into(),
-                at: [5, 2],
-                facing: Some(Facing::Ew),
-            }],
+            vec![door("d", [5, 2], Facing::Ew)],
         );
         assert_eq!(layer_floor(&l).0.len(), 1, "door slot should bridge the rooms");
     }
@@ -204,7 +216,7 @@ mod tests {
             vec![MapObject {
                 id: "c".into(),
                 kind: "column".into(),
-                at: [5, 2],
+                at: [C::cells(5), C::cells(2)],
                 facing: None,
             }],
         );
@@ -222,5 +234,16 @@ mod tests {
             vec![],
         );
         assert_eq!(layer_floor(&l).0.len(), 1);
+    }
+
+    #[test]
+    fn half_cell_rect_round_trips() {
+        // A rect carve offset by half a cell.
+        let half = Carve::Rect(RectCarve {
+            id: "half".into(),
+            rect: [C(6), C(0), C(12), C(12)], // x=0.5, y=0, w=1, h=1
+        });
+        let l = layer(vec![half], vec![]);
+        assert_eq!(layer_bounds(&l), Some((0.5, 0.0, 1.5, 1.0)));
     }
 }

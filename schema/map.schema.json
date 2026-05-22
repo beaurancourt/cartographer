@@ -67,6 +67,10 @@
       ],
       "description": "A single carve-out. The two variants are distinguished by their fields: presence of `rect` → rectangular room; presence of `path` → strip."
     },
+    "CellCoord": {
+      "description": "Coordinate in whole-cell units. Sub-cell positions are rounded to the nearest 1/12 cell on read (so halves, thirds, quarters, sixths, and twelfths are exact).",
+      "type": "number"
+    },
     "Facing": {
       "oneOf": [
         {
@@ -194,10 +198,9 @@
       "description": "A placed symbol/object — door, trap, stairs, altar, etc. The `kind` references a symbol registered in [`crate::symbols`].",
       "properties": {
         "at": {
-          "description": "Cell coordinate where the object is centered.",
+          "description": "Cell coordinate of the cell the object occupies (its symbol is drawn centered in this cell).",
           "items": {
-            "format": "int32",
-            "type": "integer"
+            "$ref": "#/definitions/CellCoord"
           },
           "maxItems": 2,
           "minItems": 2,
@@ -233,8 +236,7 @@
       "properties": {
         "at": {
           "items": {
-            "format": "int32",
-            "type": "integer"
+            "$ref": "#/definitions/CellCoord"
           },
           "maxItems": 2,
           "minItems": 2,
@@ -259,8 +261,7 @@
           "description": "Sequence of cell-coordinate waypoints. Segments must be axis-aligned.",
           "items": {
             "items": {
-              "format": "int32",
-              "type": "integer"
+              "$ref": "#/definitions/CellCoord"
             },
             "maxItems": 2,
             "minItems": 2,
@@ -269,11 +270,13 @@
           "type": "array"
         },
         "width": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/CellCoord"
+            }
+          ],
           "default": 1,
-          "description": "Width in cells. Defaults to 1.",
-          "format": "uint32",
-          "minimum": 0.0,
-          "type": "integer"
+          "description": "Width in cell units. Defaults to 1 cell."
         }
       },
       "required": [
@@ -288,10 +291,9 @@
           "type": "string"
         },
         "rect": {
-          "description": "`[x, y, width, height]` in cells. `w`/`h` must be positive.",
+          "description": "`[x, y, width, height]` in cell units. `w`/`h` must be positive.",
           "items": {
-            "format": "int32",
-            "type": "integer"
+            "$ref": "#/definitions/CellCoord"
           },
           "maxItems": 4,
           "minItems": 4,

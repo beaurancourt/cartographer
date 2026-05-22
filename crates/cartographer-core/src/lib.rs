@@ -9,6 +9,7 @@ pub mod geometry;
 pub mod model;
 pub mod render;
 pub mod symbols;
+pub mod units;
 pub mod validate;
 
 pub use error::{Error, Result};

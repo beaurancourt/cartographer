@@ -52,8 +52,8 @@ pub fn render_svg(map: &Map, opts: &RenderOptions) -> String {
     }
 
     for note in &map.notes {
-        let cx = (note.at[0] as f64 + 0.5) * cell_px;
-        let cy = (note.at[1] as f64 + 0.5) * cell_px;
+        let cx = (note.at[0].as_cells() + 0.5) * cell_px;
+        let cy = (note.at[1].as_cells() + 0.5) * cell_px;
         let _ = write!(
             s,
             r#"<text x="{cx:.2}" y="{cy:.2}" text-anchor="middle" font-family="Georgia, serif" font-size="{}" fill="{}">{}</text>"#,
@@ -131,8 +131,8 @@ fn render_layer(s: &mut String, layer: &Layer, cell_px: f64, theme: &Theme, opts
 
 fn write_object(s: &mut String, obj: &MapObject, cell_px: f64) {
     let Some(content) = symbols::symbol_svg(&obj.kind) else { return };
-    let cx = (obj.at[0] as f64 + 0.5) * cell_px;
-    let cy = (obj.at[1] as f64 + 0.5) * cell_px;
+    let cx = (obj.at[0].as_cells() + 0.5) * cell_px;
+    let cy = (obj.at[1].as_cells() + 0.5) * cell_px;
     let rot = obj.facing.map(|f| f.rotation_deg()).unwrap_or(0.0);
     let scale = cell_px / 100.0;
     let _ = write!(

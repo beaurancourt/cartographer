@@ -6,32 +6,35 @@ background:
   style: ink
 
 # Layout (cells):
-#   entry [0..5]   gap@5   hall [6..12]   gap@12   chamber [13..20]
-#                                                    |
-#                                                  carve `c1` (2 cells)
-#                                                    |
-#                                                  vault   [13..18]
-#
-# Each `gap` is a single-cell strip between two rooms. A door placed in
-# the gap cell punches a slot in the wall and the door symbol renders
-# across the slot.
+#   entry   [0..6]  × [0..6]    (6×6)
+#   gap@6
+#   hall    [7..14] × [1..4]    (7×3 hallway)
+#   gap@14
+#   chamber [15..23]× [0..7]    (8×7 main hall)
+#   gap south of chamber (2 cells)
+#   vault   [16..22]× [9..14]   (6×5 tomb)
 
 layers:
   - id: main
     carves:
-      - { id: entry,   rect: [0,  0,  5, 4] }
-      - { id: hall,    rect: [6,  1,  6, 2] }
-      - { id: chamber, rect: [13, 0,  7, 6] }
-      - { id: vault,   rect: [13, 8,  5, 4] }
-      - { id: c1,      path: [[15, 6], [15, 8]], width: 1 }
+      - { id: entry,   rect: [0,  0,  6, 6] }
+      - { id: hall,    rect: [7,  1,  7, 3] }
+      - { id: chamber, rect: [15, 0,  8, 7] }
+      - { id: vault,   rect: [16, 9,  6, 5] }
+      - { id: c1,      path: [[18, 7], [18, 9]], width: 1 }
     objects:
-      - { id: d1, type: door,        at: [5,  1], facing: ew }   # entry → hall
-      - { id: d2, type: door,        at: [12, 1], facing: ew }   # hall → chamber
-      - { id: d3, type: secret-door, at: [15, 7], facing: ns }
-      - { id: t1, type: pit-trap,    at: [9,  1] }
-      - { id: a1, type: altar,       at: [16, 2] }
-      - { id: s1, type: stairs-down, at: [1,  3], facing: s }
-      - { id: c2, type: column,      at: [15, 2] }
-      - { id: c3, type: column,      at: [17, 4] }
+      - { id: d1, type: door,        at: [6,  2], facing: ew }   # entry → hall
+      - { id: d2, type: door,        at: [14, 2], facing: ew }   # hall → chamber
+      - { id: d3, type: secret-door, at: [18, 8], facing: ns }   # in chamber→vault gap
+      - { id: t1, type: pit-trap,    at: [10, 2] }
+      - { id: a1, type: altar,       at: [19, 1] }
+      - { id: f1, type: fountain,    at: [16, 5] }
+      - { id: s1, type: stairs-down, at: [2,  4], facing: s }
+      - { id: c2, type: column,      at: [17, 3] }
+      - { id: c3, type: column,      at: [21, 3] }
+      - { id: c4, type: column,      at: [17, 5] }
+      - { id: c5, type: column,      at: [21, 5] }
+      - { id: r1, type: rubble,      at: [22, 6] }
 notes:
-  - { at: [9, 2], text: "10ft pit" }
+  - { at: [10, 3], text: "10ft pit" }
+  - { at: [19, 12], text: "tomb" }

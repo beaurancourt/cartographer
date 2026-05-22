@@ -1,6 +1,11 @@
 //! Map data model. Every field that serializes here is part of the public
 //! file format — change with care.
+//!
+//! Coordinates are stored as [`C`] (1/12-cell units) so that halves, thirds,
+//! quarters, sixths, and twelfths are exact integers. YAML/JSON authors them
+//! in whole-cell units (integers when on a cell boundary, decimals otherwise).
 
+use crate::units::C;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -98,28 +103,28 @@ impl Carve {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RectCarve {
     pub id: String,
-    /// `[x, y, width, height]` in cells. `w`/`h` must be positive.
-    pub rect: [i32; 4],
+    /// `[x, y, width, height]` in cell units. `w`/`h` must be positive.
+    pub rect: [C; 4],
 }
 
 impl RectCarve {
-    pub fn x(&self) -> i32 { self.rect[0] }
-    pub fn y(&self) -> i32 { self.rect[1] }
-    pub fn w(&self) -> i32 { self.rect[2] }
-    pub fn h(&self) -> i32 { self.rect[3] }
+    pub fn x(&self) -> C { self.rect[0] }
+    pub fn y(&self) -> C { self.rect[1] }
+    pub fn w(&self) -> C { self.rect[2] }
+    pub fn h(&self) -> C { self.rect[3] }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PathCarve {
     pub id: String,
     /// Sequence of cell-coordinate waypoints. Segments must be axis-aligned.
-    pub path: Vec<[i32; 2]>,
-    /// Width in cells. Defaults to 1.
+    pub path: Vec<[C; 2]>,
+    /// Width in cell units. Defaults to 1 cell.
     #[serde(default = "default_path_width")]
-    pub width: u32,
+    pub width: C,
 }
 
-fn default_path_width() -> u32 { 1 }
+fn default_path_width() -> C { C::cells(1) }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct LayerStyle {
@@ -153,8 +158,9 @@ pub struct MapObject {
     /// Symbol id, e.g. `door`, `secret-door`, `pit-trap`, `stairs-down`.
     #[serde(rename = "type")]
     pub kind: String,
-    /// Cell coordinate where the object is centered.
-    pub at: [i32; 2],
+    /// Cell coordinate of the cell the object occupies (its symbol is drawn
+    /// centered in this cell).
+    pub at: [C; 2],
     /// Orientation. Doors typically use `ew`/`ns`; stairs use `n`/`s`/`e`/`w`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub facing: Option<Facing>,
@@ -196,6 +202,6 @@ impl Facing {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Note {
-    pub at: [i32; 2],
+    pub at: [C; 2],
     pub text: String,
 }

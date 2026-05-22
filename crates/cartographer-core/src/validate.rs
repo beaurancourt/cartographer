@@ -1,9 +1,9 @@
 use crate::error::{Error, Result};
 use crate::model::{Carve, Map};
 use crate::symbols::is_known_symbol;
+use crate::units::C;
 use std::collections::HashSet;
 
-/// Validate a map beyond what serde checks. Returns the first error found.
 pub fn validate(map: &Map) -> Result<()> {
     if map.version != 1 {
         return Err(Error::validation(format!(
@@ -50,10 +50,12 @@ fn validate_carve(carve: &Carve, layer_id: &str, ids: &mut HashSet<String>) -> R
     }
     match carve {
         Carve::Rect(r) => {
-            if r.w() <= 0 || r.h() <= 0 {
+            if r.w() <= C::ZERO || r.h() <= C::ZERO {
                 return Err(Error::validation(format!(
                     "carve `{}` has non-positive size {}x{}",
-                    r.id, r.w(), r.h()
+                    r.id,
+                    r.w().as_cells(),
+                    r.h().as_cells()
                 )));
             }
         }
@@ -69,13 +71,17 @@ fn validate_carve(carve: &Carve, layer_id: &str, ids: &mut HashSet<String>) -> R
                 if a[0] != b[0] && a[1] != b[1] {
                     return Err(Error::validation(format!(
                         "carve `{}` segment ({},{})->({},{}) is not axis-aligned",
-                        p.id, a[0], a[1], b[0], b[1]
+                        p.id,
+                        a[0].as_cells(),
+                        a[1].as_cells(),
+                        b[0].as_cells(),
+                        b[1].as_cells()
                     )));
                 }
             }
-            if p.width == 0 {
+            if p.width <= C::ZERO {
                 return Err(Error::validation(format!(
-                    "carve `{}` has zero width",
+                    "carve `{}` has non-positive width",
                     p.id
                 )));
             }
