@@ -5,28 +5,28 @@ grid:
 background:
   style: ink
 
-# Three rooms in the Arden-Vul reference layout:
-#   r1 ── hall_a ── [door] ── hall_b ── r2
-#                                       ║
-#                                       ║ ← wall w1 with secret door d2
-#                                       r3
-#
-# The hall is split in two so the door has hall on both sides (rather than
-# jammed up against the room wall). r2↔r3 touch at y=5 and the explicit
-# wall draws a visible line through their continuous floor; the secret
-# door at y=4.5 (half-cell) lands exactly on the wall.
+# Reproducing the Arden-Vul reference geometry exactly:
+#   r1: 4×4 top-left
+#   r2: 4×3 to the east, touching r1's east wall but offset 1 cell south
+#       → r1 has an exposed east wall at y∈[1,2] above r2, and a shared
+#         wall at x=5, y∈[2,5] (drawn explicitly so it's visible)
+#   r3: 4×6 below, touching r2's south wall, offset 1 cell east
+#       → shared wall at y=5, x∈[6,9]
+#   Doors sit ON the walls (half-cell positioning so the door center
+#   lands exactly on the wall line):
+#     d1 vertical pill on the vertical wall (facing: ns → 90° rotation)
+#     d2 horizontal "S" marker on the horizontal wall (no rotation)
 
 layers:
   - id: main
     carves:
-      - { id: r1,     rect: [1,  1,  4, 4] }   # west room
-      - { id: hall_a, rect: [5,  2,  2, 1] }   # hall west of door
-      - { id: hall_b, rect: [8,  2,  2, 1] }   # hall east of door (1-cell gap @ x=7)
-      - { id: r2,     rect: [10, 1,  4, 4] }   # middle room
-      - { id: r3,     rect: [10, 5,  5, 5] }   # south room, touches r2 at y=5
+      - { id: r1, rect: [1, 1, 4, 4] }
+      - { id: r2, rect: [5, 2, 4, 3] }
+      - { id: r3, rect: [6, 5, 4, 6] }
     walls:
-      - { id: w1, segment: [[10, 5], [14, 5]] }   # wall on shared edge
+      - { id: w1, segment: [[5, 2], [5, 5]] }   # vertical, r1 ↔ r2
+      - { id: w2, segment: [[6, 5], [9, 5]] }   # horizontal, r2 ↔ r3
     objects:
-      - { id: d1, type: door,        at: [7,  2],   facing: ew }   # mid-hall
-      - { id: d2, type: secret-door, at: [12, 4.5], facing: ns }   # on wall w1
-      - { id: s1, type: stairs-up,   at: [1,  2],   facing: w }    # off-map west
+      - { id: d1, type: door,        at: [4.5, 2.5], facing: ns }   # on w1
+      - { id: d2, type: secret-door, at: [7,   4.5], facing: ew }   # on w2
+      - { id: s1, type: stairs-up,   at: [1,   2],   facing: w }
