@@ -1,4 +1,5 @@
-use cartographer_core::{ImageFormat, Map, RenderOptions, load_yaml, render_image, render_svg};
+use cartographer_core::model::{Background, BackgroundStyle, Grid, Layer, LayerStyle};
+use cartographer_core::{ImageFormat, Map, RenderOptions, load_yaml, render_image, render_svg, validate};
 use std::path::PathBuf;
 
 #[derive(thiserror::Error, Debug)]
@@ -7,6 +8,8 @@ enum CmdError {
     Core(#[from] cartographer_core::Error),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
+    #[error("yaml: {0}")]
+    Yaml(#[from] serde_yaml::Error),
     #[error("unsupported extension `.{0}` (expected svg, png, jpg)")]
     BadExt(String),
 }
@@ -35,6 +38,31 @@ fn render_map_svg(map: Map, show_grid: Option<bool>) -> Result<String, CmdError>
 }
 
 #[tauri::command]
+fn new_map() -> Map {
+    Map {
+        version: 1,
+        grid: Grid::default(),
+        background: Background { style: BackgroundStyle::Ink },
+        layers: vec![Layer {
+            id: "main".into(),
+            style: LayerStyle::default(),
+            carves: vec![],
+            walls: vec![],
+            objects: vec![],
+        }],
+        notes: vec![],
+    }
+}
+
+#[tauri::command]
+fn save_map(map: Map, path: String) -> Result<(), CmdError> {
+    validate::validate(&map)?;
+    let yaml = serde_yaml::to_string(&map)?;
+    std::fs::write(&path, yaml)?;
+    Ok(())
+}
+
+#[tauri::command]
 fn export_image(map: Map, path: String) -> Result<(), CmdError> {
     let p = PathBuf::from(&path);
     let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_ascii_lowercase();
@@ -59,6 +87,8 @@ pub fn run() {
             load_map,
             parse_map,
             render_map_svg,
+            new_map,
+            save_map,
             export_image,
         ])
         .run(tauri::generate_context!())

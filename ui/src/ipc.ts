@@ -1,8 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-
-// Mirror of cartographer_core::model — kept loose since the Rust side is the
-// source of truth and we just round-trip the value back through `render_map_svg`.
-export type Map = unknown;
+import type { Map } from "./state";
 
 export async function loadMap(path: string): Promise<Map> {
   return await invoke<Map>("load_map", { path });
@@ -10,6 +7,14 @@ export async function loadMap(path: string): Promise<Map> {
 
 export async function parseMap(yaml: string): Promise<Map> {
   return await invoke<Map>("parse_map", { yaml });
+}
+
+export async function newMap(): Promise<Map> {
+  return await invoke<Map>("new_map");
+}
+
+export async function saveMap(map: Map, path: string): Promise<void> {
+  await invoke("save_map", { map, path });
 }
 
 export async function renderMapSvg(map: Map, showGrid = true): Promise<string> {

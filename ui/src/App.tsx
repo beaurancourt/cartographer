@@ -1,26 +1,29 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { exportImage, loadMap, renderMapSvg, type Map } from "./ipc";
+import { Editor } from "./Editor";
+import { exportImage, loadMap, newMap, saveMap } from "./ipc";
+import type { Map } from "./state";
+
+type Tool = "select" | "rect";
 
 export function App() {
   const [map, setMap] = useState<Map | null>(null);
   const [path, setPath] = useState<string | null>(null);
-  const [svg, setSvg] = useState<string | null>(null);
+  const [tool, setTool] = useState<Tool>("rect");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (map === null) {
-      setSvg(null);
-      return;
+  async function handleNew() {
+    setError(null);
+    try {
+      const m = await newMap();
+      setMap(m);
+      setPath(null);
+      setSelectedId(null);
+    } catch (e) {
+      setError(String(e));
     }
-    let cancelled = false;
-    renderMapSvg(map)
-      .then((s) => !cancelled && setSvg(s))
-      .catch((e) => !cancelled && setError(String(e)));
-    return () => {
-      cancelled = true;
-    };
-  }, [map]);
+  }
 
   async function handleOpen() {
     setError(null);
@@ -33,9 +36,29 @@ export function App() {
       const m = await loadMap(picked);
       setMap(m);
       setPath(picked);
+      setSelectedId(null);
     } catch (e) {
       setError(String(e));
-      setMap(null);
+    }
+  }
+
+  async function handleSave() {
+    if (!map) return;
+    setError(null);
+    let target = path;
+    if (!target) {
+      const picked = await save({
+        filters: [{ name: "Cartographer map", extensions: ["yaml"] }],
+        defaultPath: "map.yaml",
+      });
+      if (!picked) return;
+      target = picked;
+    }
+    try {
+      await saveMap(map, target);
+      setPath(target);
+    } catch (e) {
+      setError(String(e));
     }
   }
 
@@ -48,6 +71,7 @@ export function App() {
         { name: "JPG", extensions: ["jpg", "jpeg"] },
         { name: "SVG", extensions: ["svg"] },
       ],
+      defaultPath: "map.png",
     });
     if (!picked) return;
     try {
@@ -60,30 +84,64 @@ export function App() {
   return (
     <div className="app">
       <div className="toolbar">
-        <button onClick={handleOpen}>Open YAML…</button>
-        <button onClick={handleExport} disabled={!map}>
-          Export image…
+        <button onClick={handleNew}>New</button>
+        <button onClick={handleOpen}>Open…</button>
+        <button onClick={handleSave} disabled={!map}>
+          Save{!path ? "…" : ""}
         </button>
+        <button onClick={handleExport} disabled={!map}>
+          Export…
+        </button>
+        <div className="divider" />
+        <ToolButton current={tool} value="rect" onClick={setTool}>
+          Rectangle
+        </ToolButton>
+        <ToolButton current={tool} value="select" onClick={setTool}>
+          Select
+        </ToolButton>
         <div className="spacer" />
         {path && <span className="path">{path}</span>}
       </div>
-      <div className="canvas">
-        {error && <pre className="error">{error}</pre>}
-        {!error && svg && <div dangerouslySetInnerHTML={{ __html: svg }} />}
-        {!error && !svg && (
-          <div className="empty">
-            <h2>Cartographer</h2>
-            <p>
-              Open a <code>.yaml</code> map file to render it. Try{" "}
-              <code>examples/small-tomb.yaml</code> from the repository.
-            </p>
-            <p style={{ marginTop: "1rem" }}>
-              Phase 2 is read-only preview. Carving rooms in the UI lands in
-              Phase 3.
-            </p>
-          </div>
-        )}
-      </div>
+      {error && <pre className="error">{error}</pre>}
+      {map ? (
+        <Editor
+          map={map}
+          setMap={setMap}
+          tool={tool}
+          selectedId={selectedId}
+          setSelectedId={setSelectedId}
+        />
+      ) : (
+        <div className="empty">
+          <h2>Cartographer</h2>
+          <p>
+            Click <strong>New</strong> to start a fresh map, or{" "}
+            <strong>Open…</strong> to load a YAML file. Drag with the{" "}
+            <strong>Rectangle</strong> tool to carve rooms.
+          </p>
+        </div>
+      )}
     </div>
+  );
+}
+
+function ToolButton({
+  current,
+  value,
+  onClick,
+  children,
+}: {
+  current: Tool;
+  value: Tool;
+  onClick: (t: Tool) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      className={current === value ? "tool active" : "tool"}
+      onClick={() => onClick(value)}
+    >
+      {children}
+    </button>
   );
 }
