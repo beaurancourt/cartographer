@@ -1,9 +1,9 @@
-<g fill="#1a1a1a">
-  <circle cx="-14" cy="-10" r="4" />
-  <circle cx="6" cy="-14" r="5" />
-  <circle cx="14" cy="2" r="3" />
-  <circle cx="-6" cy="6" r="4" />
-  <circle cx="0" cy="-2" r="3" />
-  <circle cx="-12" cy="14" r="3" />
-  <circle cx="10" cy="14" r="4" />
+<g fill="#000000">
+  <circle cx="-14" cy="-10" r="5" />
+  <circle cx="6" cy="-14" r="6" />
+  <circle cx="14" cy="2" r="4" />
+  <circle cx="-6" cy="6" r="5" />
+  <circle cx="0" cy="-2" r="4" />
+  <circle cx="-12" cy="14" r="4" />
+  <circle cx="10" cy="14" r="5" />
 </g>

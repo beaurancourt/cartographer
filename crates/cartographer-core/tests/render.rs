@@ -49,8 +49,7 @@ fn rejects_diagonal_corridor() {
 version: 1
 layers:
   - id: main
-    rooms: []
-    corridors:
+    carves:
       - { id: c1, path: [[0, 0], [3, 3]], width: 1 }
 "#;
     let err = load_yaml(bad).unwrap_err().to_string();
@@ -63,7 +62,7 @@ fn rejects_unknown_symbol() {
 version: 1
 layers:
   - id: main
-    rooms:
+    carves:
       - { id: r, rect: [0, 0, 4, 4] }
     objects:
       - { id: o1, type: pterodactyl, at: [1, 1] }
@@ -78,9 +77,9 @@ fn rejects_duplicate_layer_id() {
 version: 1
 layers:
   - id: main
-    rooms: []
+    carves: []
   - id: main
-    rooms: []
+    carves: []
 "#;
     let err = load_yaml(bad).unwrap_err().to_string();
     assert!(err.contains("duplicate layer id"), "got: {err}");

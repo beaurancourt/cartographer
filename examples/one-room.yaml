@@ -3,11 +3,11 @@ grid:
   cell_size: 50
   ft_per_cell: 5
 background:
-  style: parchment
+  style: ink
 layers:
   - id: main
-    rooms:
+    carves:
       - { id: r1, rect: [0, 0, 8, 6] }
     objects:
-      - { id: d1, type: door, at: [3, 0], facing: ew }
+      - { id: d1, type: door,        at: [3, 0], facing: ns }
       - { id: s1, type: stairs-down, at: [6, 4], facing: n }

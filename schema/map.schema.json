@@ -9,51 +9,63 @@
               "$ref": "#/definitions/BackgroundStyle"
             }
           ],
-          "default": "parchment"
+          "default": "ink"
         }
       },
       "type": "object"
     },
     "BackgroundStyle": {
-      "enum": [
-        "parchment",
-        "clean",
-        "blueprint"
-      ],
-      "type": "string"
-    },
-    "Corridor": {
-      "description": "A corridor — a strip of given width along an axis-aligned polyline.",
-      "properties": {
-        "id": {
+      "oneOf": [
+        {
+          "description": "High-contrast black/white VTT style (Arden Vul, Old School Essentials, etc.). Black \"void\" with white floor; walls implicit from contrast.",
+          "enum": [
+            "ink"
+          ],
           "type": "string"
         },
-        "path": {
-          "description": "Sequence of `[x, y]` waypoints in cell coordinates. Segments must be horizontal or vertical (axis-aligned).",
-          "items": {
-            "items": {
-              "format": "int32",
-              "type": "integer"
-            },
-            "maxItems": 2,
-            "minItems": 2,
-            "type": "array"
-          },
-          "type": "array"
+        {
+          "description": "Warm cream parchment with hatched floor.",
+          "enum": [
+            "parchment"
+          ],
+          "type": "string"
         },
-        "width": {
-          "default": 1,
-          "description": "Width in cells. Defaults to 1.",
-          "format": "uint32",
-          "minimum": 0.0,
-          "type": "integer"
+        {
+          "description": "Plain white floor on white background with thin grey grid.",
+          "enum": [
+            "clean"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Inverted \"blueprint\" style — white linework on dark blue.",
+          "enum": [
+            "blueprint"
+          ],
+          "type": "string"
         }
-      },
-      "required": [
-        "id",
-        "path"
+      ]
+    },
+    "Carve": {
+      "anyOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/definitions/RectCarve"
+            }
+          ],
+          "description": "Rectangular carve-out (room)."
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/definitions/PathCarve"
+            }
+          ],
+          "description": "Axis-aligned strip along a polyline."
+        }
       ],
-      "type": "object"
+      "description": "A single carve-out. The two variants are distinguished by their fields: presence of `rect` → rectangular room; presence of `path` → strip."
     },
     "Facing": {
       "oneOf": [
@@ -67,14 +79,14 @@
           "type": "string"
         },
         {
-          "description": "North-South — door/passage oriented along the Y axis.",
+          "description": "North-south passage — door panel perpendicular to the N-S axis, i.e. door sits in a horizontal (east-west) wall.",
           "enum": [
             "ns"
           ],
           "type": "string"
         },
         {
-          "description": "East-West — door/passage oriented along the X axis.",
+          "description": "East-west passage — door panel perpendicular to the E-W axis, i.e. door sits in a vertical (north-south) wall.",
           "enum": [
             "ew"
           ],
@@ -122,10 +134,11 @@
     },
     "Layer": {
       "properties": {
-        "corridors": {
+        "carves": {
           "default": [],
+          "description": "Carve-outs that make up the floor. Each carve is either a `rect` (rectangular room) or a `path` + `width` (axis-aligned strip). The final floor is the union of every carve in the layer.",
           "items": {
-            "$ref": "#/definitions/Corridor"
+            "$ref": "#/definitions/Carve"
           },
           "type": "array"
         },
@@ -136,13 +149,6 @@
           "default": [],
           "items": {
             "$ref": "#/definitions/MapObject"
-          },
-          "type": "array"
-        },
-        "rooms": {
-          "default": [],
-          "items": {
-            "$ref": "#/definitions/Room"
           },
           "type": "array"
         },
@@ -244,14 +250,45 @@
       ],
       "type": "object"
     },
-    "Room": {
-      "description": "A rectangular room, expressed in cell coordinates.",
+    "PathCarve": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "description": "Sequence of cell-coordinate waypoints. Segments must be axis-aligned.",
+          "items": {
+            "items": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "width": {
+          "default": 1,
+          "description": "Width in cells. Defaults to 1.",
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ],
+      "type": "object"
+    },
+    "RectCarve": {
       "properties": {
         "id": {
           "type": "string"
         },
         "rect": {
-          "description": "`[x, y, width, height]` in cells. `x`/`y` may be negative; `w`/`h` > 0.",
+          "description": "`[x, y, width, height]` in cells. `w`/`h` must be positive.",
           "items": {
             "format": "int32",
             "type": "integer"
@@ -283,7 +320,7 @@
         }
       ],
       "default": {
-        "style": "parchment"
+        "style": "ink"
       }
     },
     "grid": {

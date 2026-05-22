@@ -49,9 +49,15 @@ pub struct Background {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum BackgroundStyle {
+    /// High-contrast black/white VTT style (Arden Vul, Old School Essentials, etc.).
+    /// Black "void" with white floor; walls implicit from contrast.
     #[default]
+    Ink,
+    /// Warm cream parchment with hatched floor.
     Parchment,
+    /// Plain white floor on white background with thin grey grid.
     Clean,
+    /// Inverted "blueprint" style — white linework on dark blue.
     Blueprint,
 }
 
@@ -60,13 +66,60 @@ pub struct Layer {
     pub id: String,
     #[serde(default)]
     pub style: LayerStyle,
+    /// Carve-outs that make up the floor. Each carve is either a `rect`
+    /// (rectangular room) or a `path` + `width` (axis-aligned strip). The
+    /// final floor is the union of every carve in the layer.
     #[serde(default)]
-    pub rooms: Vec<Room>,
-    #[serde(default)]
-    pub corridors: Vec<Corridor>,
+    pub carves: Vec<Carve>,
     #[serde(default)]
     pub objects: Vec<MapObject>,
 }
+
+/// A single carve-out. The two variants are distinguished by their fields:
+/// presence of `rect` → rectangular room; presence of `path` → strip.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum Carve {
+    /// Rectangular carve-out (room).
+    Rect(RectCarve),
+    /// Axis-aligned strip along a polyline.
+    Path(PathCarve),
+}
+
+impl Carve {
+    pub fn id(&self) -> &str {
+        match self {
+            Carve::Rect(r) => &r.id,
+            Carve::Path(p) => &p.id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RectCarve {
+    pub id: String,
+    /// `[x, y, width, height]` in cells. `w`/`h` must be positive.
+    pub rect: [i32; 4],
+}
+
+impl RectCarve {
+    pub fn x(&self) -> i32 { self.rect[0] }
+    pub fn y(&self) -> i32 { self.rect[1] }
+    pub fn w(&self) -> i32 { self.rect[2] }
+    pub fn h(&self) -> i32 { self.rect[3] }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PathCarve {
+    pub id: String,
+    /// Sequence of cell-coordinate waypoints. Segments must be axis-aligned.
+    pub path: Vec<[i32; 2]>,
+    /// Width in cells. Defaults to 1.
+    #[serde(default = "default_path_width")]
+    pub width: u32,
+}
+
+fn default_path_width() -> u32 { 1 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct LayerStyle {
@@ -92,35 +145,6 @@ pub enum FloorStyle {
     Dotted,
 }
 
-/// A rectangular room, expressed in cell coordinates.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct Room {
-    pub id: String,
-    /// `[x, y, width, height]` in cells. `x`/`y` may be negative; `w`/`h` > 0.
-    pub rect: [i32; 4],
-}
-
-impl Room {
-    pub fn x(&self) -> i32 { self.rect[0] }
-    pub fn y(&self) -> i32 { self.rect[1] }
-    pub fn w(&self) -> i32 { self.rect[2] }
-    pub fn h(&self) -> i32 { self.rect[3] }
-}
-
-/// A corridor — a strip of given width along an axis-aligned polyline.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct Corridor {
-    pub id: String,
-    /// Sequence of `[x, y]` waypoints in cell coordinates. Segments must be
-    /// horizontal or vertical (axis-aligned).
-    pub path: Vec<[i32; 2]>,
-    /// Width in cells. Defaults to 1.
-    #[serde(default = "default_corridor_width")]
-    pub width: u32,
-}
-
-fn default_corridor_width() -> u32 { 1 }
-
 /// A placed symbol/object — door, trap, stairs, altar, etc. The `kind`
 /// references a symbol registered in [`crate::symbols`].
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -143,13 +167,21 @@ pub enum Facing {
     S,
     E,
     W,
-    /// North-South — door/passage oriented along the Y axis.
+    /// North-south passage — door panel perpendicular to the N-S axis,
+    /// i.e. door sits in a horizontal (east-west) wall.
     Ns,
-    /// East-West — door/passage oriented along the X axis.
+    /// East-west passage — door panel perpendicular to the E-W axis,
+    /// i.e. door sits in a vertical (north-south) wall.
     Ew,
 }
 
 impl Facing {
+    /// Rotation in degrees to apply to a symbol authored in its canonical
+    /// horizontal orientation (door panel wider than tall, sitting in a
+    /// north-south wall — i.e. allowing east-west passage).
+    ///
+    /// `Ew` is the canonical orientation → no rotation. `Ns` rotates 90° so
+    /// the panel becomes vertical, fitting an east-west wall.
     pub fn rotation_deg(&self) -> f32 {
         match self {
             Facing::N => 0.0,

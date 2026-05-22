@@ -40,3 +40,9 @@ pub fn symbol_svg(id: &str) -> Option<&'static str> {
 pub fn known_ids() -> impl Iterator<Item = &'static str> {
     SYMBOLS.iter().map(|(k, _)| *k)
 }
+
+/// Door-like symbols add their cell to the floor union, "cutting" a 1-cell
+/// opening in any wall the cell falls on. Used by [`crate::geometry`].
+pub fn is_door_like(id: &str) -> bool {
+    matches!(id, "door" | "secret-door" | "locked-door")
+}
