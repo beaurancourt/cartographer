@@ -166,6 +166,14 @@
             "floor": "hatched",
             "wall": "solid"
           }
+        },
+        "walls": {
+          "default": [],
+          "description": "Internal walls drawn as lines over the floor. Use these when two rooms touch but you want a visible wall between them (the union of touching carves alone would erase the wall). Secret doors are typically placed on a wall.",
+          "items": {
+            "$ref": "#/definitions/Wall"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -303,6 +311,33 @@
       "required": [
         "id",
         "rect"
+      ],
+      "type": "object"
+    },
+    "Wall": {
+      "description": "An axis-aligned wall segment, drawn as a thick black line on top of the floor. Use to mark a wall where two carves touch (or anywhere inside a single carve to subdivide it visually).",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "segment": {
+          "description": "Endpoints of the wall segment, axis-aligned.",
+          "items": {
+            "items": {
+              "$ref": "#/definitions/CellCoord"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "segment"
       ],
       "type": "object"
     },

@@ -6,7 +6,7 @@
 //! gets clean float coords while the source model stays exact.
 
 use crate::model::{Carve, Facing, Layer};
-use crate::symbols::is_door_like;
+use crate::symbols::cuts_wall;
 use crate::units::C;
 use geo::{BooleanOps, LineString, MultiPolygon, Polygon};
 
@@ -32,7 +32,7 @@ pub fn layer_bounds(layer: &Layer) -> Option<(f64, f64, f64, f64)> {
         }
     }
     for obj in &layer.objects {
-        if is_door_like(&obj.kind) {
+        if cuts_wall(&obj.kind) {
             let (x, y, w, h) = door_slot_rect(obj.at, obj.facing);
             grow(x, y, w, h);
         }
@@ -51,7 +51,7 @@ pub fn layer_floor(layer: &Layer) -> MultiPolygon<f64> {
         }
     }
     for obj in &layer.objects {
-        if is_door_like(&obj.kind) {
+        if cuts_wall(&obj.kind) {
             let (x, y, w, h) = door_slot_rect(obj.at, obj.facing);
             acc = union_one(acc, rect_polygon(x, y, w, h));
         }
@@ -148,6 +148,7 @@ mod tests {
             id: "main".into(),
             style: Default::default(),
             carves,
+            walls: vec![],
             objects,
         }
     }

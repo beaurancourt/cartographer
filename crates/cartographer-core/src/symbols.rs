@@ -43,6 +43,16 @@ pub fn known_ids() -> impl Iterator<Item = &'static str> {
 
 /// Door-like symbols add their cell to the floor union, "cutting" a 1-cell
 /// opening in any wall the cell falls on. Used by [`crate::geometry`].
+///
+/// Note that `secret-door` is *not* wall-cutting: it stays embedded in the
+/// wall material visually, since the whole point of a secret door is that
+/// the map shouldn't betray its location.
+pub fn cuts_wall(id: &str) -> bool {
+    matches!(id, "door" | "locked-door")
+}
+
+/// Whether the symbol is *some* kind of door (visible or secret). Useful for
+/// UI categorization; geometry should use [`cuts_wall`] instead.
 pub fn is_door_like(id: &str) -> bool {
     matches!(id, "door" | "secret-door" | "locked-door")
 }

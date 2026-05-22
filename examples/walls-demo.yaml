@@ -1,0 +1,25 @@
+version: 1
+grid:
+  cell_size: 50
+  ft_per_cell: 5
+background:
+  style: ink
+
+# Reproduces the Arden-Vul-style reference: three rooms, where r1↔r2 are
+# connected by a regular door in a 1-cell wall gap, and r2↔r3 share an
+# edge but have a *wall line* drawn across it with a secret door sitting
+# on the wall. The secret door is at y=4.5 (half-cell) so it lands exactly
+# on the wall line at y=5.
+
+layers:
+  - id: main
+    carves:
+      - { id: r1, rect: [1, 1, 4, 4] }     # top-left room (gap @ x=5)
+      - { id: r2, rect: [6, 2, 4, 3] }     # middle room
+      - { id: r3, rect: [6, 5, 5, 5] }     # bottom room, touches r2 at y=5
+    walls:
+      - { id: w1, segment: [[6, 5], [10, 5]] }   # wall between r2 and r3
+    objects:
+      - { id: d1, type: door,        at: [5, 3], facing: ew }    # in r1↔r2 gap
+      - { id: d2, type: secret-door, at: [8, 4.5], facing: ns }  # on wall w1
+      - { id: s1, type: stairs-up,   at: [1, 2], facing: w }     # off-map stairs

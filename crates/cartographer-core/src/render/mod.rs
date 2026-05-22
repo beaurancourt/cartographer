@@ -124,6 +124,34 @@ fn render_layer(s: &mut String, layer: &Layer, cell_px: f64, theme: &Theme, opts
         );
     }
 
+    // Explicit walls — thick black lines drawn over the floor (clipped to it),
+    // so e.g. two touching rooms can have a visible wall between them and a
+    // secret door can sit on it.
+    if !layer.walls.is_empty() {
+        let clip_id = format!("wall-clip-{}", layer.id);
+        let _ = write!(
+            s,
+            r#"<clipPath id="{clip_id}"><path d="{floor_d}" fill-rule="evenodd"/></clipPath>"#
+        );
+        let _ = write!(
+            s,
+            r#"<g clip-path="url(#{clip_id})" stroke="{}" stroke-width="{:.2}" stroke-linecap="square">"#,
+            theme.interior_wall, cell_px * 0.10
+        );
+        for wall in &layer.walls {
+            let [a, b] = wall.segment;
+            let _ = write!(
+                s,
+                r#"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}"/>"#,
+                a[0].as_cells() * cell_px,
+                a[1].as_cells() * cell_px,
+                b[0].as_cells() * cell_px,
+                b[1].as_cells() * cell_px
+            );
+        }
+        s.push_str("</g>");
+    }
+
     for obj in &layer.objects {
         write_object(s, obj, cell_px);
     }
@@ -256,6 +284,8 @@ struct Theme {
     /// the wall (Arden Vul / OSR VTT-black style).
     wall_stroke: Option<&'static str>,
     wall_stroke_width: f64,
+    /// Color for explicit `Wall` segments drawn over the floor.
+    interior_wall: &'static str,
     grid: &'static str,
     grid_opacity: f32,
     hatch: Option<&'static str>,
@@ -269,6 +299,7 @@ fn theme_for(style: BackgroundStyle) -> Theme {
             floor: "#ffffff",
             wall_stroke: None,
             wall_stroke_width: 0.0,
+            interior_wall: "#000000",
             grid: "#000000",
             grid_opacity: 0.55,
             hatch: None,
@@ -279,6 +310,7 @@ fn theme_for(style: BackgroundStyle) -> Theme {
             floor: "#f6efd7",
             wall_stroke: Some("#1a1a1a"),
             wall_stroke_width: 0.08,
+            interior_wall: "#1a1a1a",
             grid: "#a99775",
             grid_opacity: 0.35,
             hatch: Some("#a99775"),
@@ -289,6 +321,7 @@ fn theme_for(style: BackgroundStyle) -> Theme {
             floor: "#ffffff",
             wall_stroke: Some("#1a1a1a"),
             wall_stroke_width: 0.06,
+            interior_wall: "#1a1a1a",
             grid: "#cccccc",
             grid_opacity: 0.7,
             hatch: None,
@@ -299,6 +332,7 @@ fn theme_for(style: BackgroundStyle) -> Theme {
             floor: "#22467a",
             wall_stroke: Some("#e8f1ff"),
             wall_stroke_width: 0.06,
+            interior_wall: "#e8f1ff",
             grid: "#80a7d6",
             grid_opacity: 0.5,
             hatch: None,

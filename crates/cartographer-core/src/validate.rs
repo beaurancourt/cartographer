@@ -25,6 +25,28 @@ pub fn validate(map: &Map) -> Result<()> {
         for carve in &layer.carves {
             validate_carve(carve, &layer.id, &mut entity_ids)?;
         }
+        for wall in &layer.walls {
+            if !entity_ids.insert(wall.id.clone()) {
+                return Err(Error::validation(format!(
+                    "duplicate entity id `{}` in layer `{}`",
+                    wall.id, layer.id
+                )));
+            }
+            let [a, b] = wall.segment;
+            if a[0] != b[0] && a[1] != b[1] {
+                return Err(Error::validation(format!(
+                    "wall `{}` segment ({},{})->({},{}) is not axis-aligned",
+                    wall.id, a[0].as_cells(), a[1].as_cells(),
+                    b[0].as_cells(), b[1].as_cells()
+                )));
+            }
+            if a == b {
+                return Err(Error::validation(format!(
+                    "wall `{}` is zero-length",
+                    wall.id
+                )));
+            }
+        }
         for obj in &layer.objects {
             if !entity_ids.insert(obj.id.clone()) {
                 return Err(Error::validation(format!(

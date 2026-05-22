@@ -76,8 +76,24 @@ pub struct Layer {
     /// final floor is the union of every carve in the layer.
     #[serde(default)]
     pub carves: Vec<Carve>,
+    /// Internal walls drawn as lines over the floor. Use these when two
+    /// rooms touch but you want a visible wall between them (the union of
+    /// touching carves alone would erase the wall). Secret doors are
+    /// typically placed on a wall.
+    #[serde(default)]
+    pub walls: Vec<Wall>,
     #[serde(default)]
     pub objects: Vec<MapObject>,
+}
+
+/// An axis-aligned wall segment, drawn as a thick black line on top of the
+/// floor. Use to mark a wall where two carves touch (or anywhere inside a
+/// single carve to subdivide it visually).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Wall {
+    pub id: String,
+    /// Endpoints of the wall segment, axis-aligned.
+    pub segment: [[C; 2]; 2],
 }
 
 /// A single carve-out. The two variants are distinguished by their fields:
