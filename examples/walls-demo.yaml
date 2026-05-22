@@ -5,21 +5,28 @@ grid:
 background:
   style: ink
 
-# Reproduces the Arden-Vul-style reference: three rooms, where r1↔r2 are
-# connected by a regular door in a 1-cell wall gap, and r2↔r3 share an
-# edge but have a *wall line* drawn across it with a secret door sitting
-# on the wall. The secret door is at y=4.5 (half-cell) so it lands exactly
-# on the wall line at y=5.
+# Three rooms in the Arden-Vul reference layout:
+#   r1 ── hall_a ── [door] ── hall_b ── r2
+#                                       ║
+#                                       ║ ← wall w1 with secret door d2
+#                                       r3
+#
+# The hall is split in two so the door has hall on both sides (rather than
+# jammed up against the room wall). r2↔r3 touch at y=5 and the explicit
+# wall draws a visible line through their continuous floor; the secret
+# door at y=4.5 (half-cell) lands exactly on the wall.
 
 layers:
   - id: main
     carves:
-      - { id: r1, rect: [1, 1, 4, 4] }     # top-left room (gap @ x=5)
-      - { id: r2, rect: [6, 2, 4, 3] }     # middle room
-      - { id: r3, rect: [6, 5, 5, 5] }     # bottom room, touches r2 at y=5
+      - { id: r1,     rect: [1,  1,  4, 4] }   # west room
+      - { id: hall_a, rect: [5,  2,  2, 1] }   # hall west of door
+      - { id: hall_b, rect: [8,  2,  2, 1] }   # hall east of door (1-cell gap @ x=7)
+      - { id: r2,     rect: [10, 1,  4, 4] }   # middle room
+      - { id: r3,     rect: [10, 5,  5, 5] }   # south room, touches r2 at y=5
     walls:
-      - { id: w1, segment: [[6, 5], [10, 5]] }   # wall between r2 and r3
+      - { id: w1, segment: [[10, 5], [14, 5]] }   # wall on shared edge
     objects:
-      - { id: d1, type: door,        at: [5, 3], facing: ew }    # in r1↔r2 gap
-      - { id: d2, type: secret-door, at: [8, 4.5], facing: ns }  # on wall w1
-      - { id: s1, type: stairs-up,   at: [1, 2], facing: w }     # off-map stairs
+      - { id: d1, type: door,        at: [7,  2],   facing: ew }   # mid-hall
+      - { id: d2, type: secret-door, at: [12, 4.5], facing: ns }   # on wall w1
+      - { id: s1, type: stairs-up,   at: [1,  2],   facing: w }    # off-map west
