@@ -92,11 +92,22 @@ fn save_map(map: Map, path: String) -> Result<(), CmdError> {
     Ok(())
 }
 
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ExportArgs {
+    /// Include layers marked `gm_only`. Default true (GM view).
+    show_gm: Option<bool>,
+}
+
 #[tauri::command]
-fn export_image(map: Map, path: String) -> Result<(), CmdError> {
+fn export_image(map: Map, path: String, args: Option<ExportArgs>) -> Result<(), CmdError> {
+    let args = args.unwrap_or_default();
     let p = PathBuf::from(&path);
     let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_ascii_lowercase();
-    let opts = RenderOptions::default();
+    let opts = RenderOptions {
+        show_gm: args.show_gm.unwrap_or(true),
+        ..Default::default()
+    };
     let svg = render_svg(&map, &opts);
     let bytes = match ext.as_str() {
         "svg" => svg.into_bytes(),

@@ -24,6 +24,9 @@ enum Cmd {
         /// Hide the grid overlay.
         #[arg(long)]
         no_grid: bool,
+        /// Render the player-facing view: hide layers marked gm_only.
+        #[arg(long)]
+        player: bool,
     },
     /// Validate a map file. Exits non-zero with a friendly error on failure.
     Validate { input: PathBuf },
@@ -39,7 +42,7 @@ enum Cmd {
 
 fn main() -> ExitCode {
     match Cli::parse().cmd {
-        Cmd::Render { input, output, cell_px, no_grid } => match render(input, output, cell_px, no_grid) {
+        Cmd::Render { input, output, cell_px, no_grid, player } => match render(input, output, cell_px, no_grid, player) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => { eprintln!("error: {e:?}"); ExitCode::FAILURE }
         },
@@ -60,13 +63,23 @@ fn main() -> ExitCode {
     }
 }
 
-fn render(input: PathBuf, output: PathBuf, cell_px_override: Option<u32>, no_grid: bool) -> Result<()> {
+fn render(
+    input: PathBuf,
+    output: PathBuf,
+    cell_px_override: Option<u32>,
+    no_grid: bool,
+    player: bool,
+) -> Result<()> {
     let yaml = std::fs::read_to_string(&input).with_context(|| format!("reading {}", input.display()))?;
     let mut map = load_yaml(&yaml).with_context(|| format!("loading {}", input.display()))?;
     if let Some(px) = cell_px_override {
         map.grid.cell_size = px;
     }
-    let opts = RenderOptions { show_grid: !no_grid, ..Default::default() };
+    let opts = RenderOptions {
+        show_grid: !no_grid,
+        show_gm: !player,
+        ..Default::default()
+    };
     let svg = render_svg(&map, &opts);
 
     let ext = output

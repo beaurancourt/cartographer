@@ -29,6 +29,10 @@ export async function renderMapSvg(map: Map, args: RenderArgs = {}): Promise<str
   return await invoke<string>("render_map_svg", { map, args });
 }
 
-export async function exportImage(map: Map, path: string): Promise<void> {
-  await invoke("export_image", { map, path });
+export async function exportImage(
+  map: Map,
+  path: string,
+  args: { showGm?: boolean } = {},
+): Promise<void> {
+  await invoke("export_image", { map, path, args });
 }

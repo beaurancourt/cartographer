@@ -128,7 +128,7 @@ export function App() {
     });
     if (!picked) return;
     try {
-      await exportImage(map, picked);
+      await exportImage(map, picked, { showGm: view === "gm" });
     } catch (e) {
       setError(String(e));
     }
