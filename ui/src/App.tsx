@@ -4,7 +4,7 @@ import { Editor, type Selection, type Tool } from "./Editor";
 import { Inspector } from "./Inspector";
 import { useMapHistory } from "./history";
 import { exportImage, loadMap, newMap, saveMap } from "./ipc";
-import { OBJECT_TOOLS } from "./state";
+import { OBJECT_TOOLS, type Map } from "./state";
 
 export function App() {
   const { map, canUndo, canRedo, setMap, resetMap, replaceMap, commitMap, undo, redo } =
@@ -166,6 +166,25 @@ export function App() {
             {t.label}
           </ToolButton>
         ))}
+        <div className="divider" />
+        {map && (
+          <select
+            className="style-picker"
+            value={map.background.style}
+            onChange={(e) =>
+              setMap({
+                ...map,
+                background: { style: e.target.value as Map["background"]["style"] },
+              })
+            }
+            title="Background style"
+          >
+            <option value="ink">Ink (OSR)</option>
+            <option value="parchment">Parchment</option>
+            <option value="clean">Clean</option>
+            <option value="blueprint">Blueprint</option>
+          </select>
+        )}
         <div className="spacer" />
         {path && <span className="path">{path}</span>}
       </div>
