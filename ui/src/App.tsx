@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Editor, type Tool } from "./Editor";
+import { Editor, type Selection, type Tool } from "./Editor";
+import { Inspector } from "./Inspector";
 import { useMapHistory } from "./history";
 import { exportImage, loadMap, newMap, saveMap } from "./ipc";
 import { OBJECT_TOOLS } from "./state";
-
-type Selection = { kind: "carve" | "object"; id: string };
 
 export function App() {
   const { map, canUndo, canRedo, setMap, resetMap, undo, redo } = useMapHistory();
@@ -120,6 +119,9 @@ export function App() {
         <ToolButton current={tool} value="rect" onClick={setTool}>
           Rectangle
         </ToolButton>
+        <ToolButton current={tool} value="wall" onClick={setTool}>
+          Wall
+        </ToolButton>
         <ToolButton current={tool} value="select" onClick={setTool}>
           Select
         </ToolButton>
@@ -134,20 +136,29 @@ export function App() {
       </div>
       {error && <pre className="error">{error}</pre>}
       {map ? (
-        <Editor
-          map={map}
-          setMap={setMap}
-          tool={tool}
-          selection={selection}
-          setSelection={setSelection}
-        />
+        <div className="main">
+          <Editor
+            map={map}
+            setMap={setMap}
+            tool={tool}
+            selection={selection}
+            setSelection={setSelection}
+          />
+          <Inspector
+            map={map}
+            setMap={setMap}
+            selection={selection}
+            setSelection={setSelection}
+          />
+        </div>
       ) : (
         <div className="empty">
           <h2>Cartographer</h2>
           <p>
             Click <strong>New</strong> to start a fresh map, or{" "}
             <strong>Open…</strong> to load a YAML file. Drag with the{" "}
-            <strong>Rectangle</strong> tool to carve rooms; click with an
+            <strong>Rectangle</strong> tool to carve rooms; click two points
+            with the <strong>Wall</strong> tool to draw a wall; click with an
             object tool to place doors, traps, stairs, etc.
           </p>
         </div>

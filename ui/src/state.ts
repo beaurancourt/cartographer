@@ -70,6 +70,33 @@ export function removeObject(map: Map, id: string): Map {
   }));
 }
 
+export function updateObject(
+  map: Map,
+  id: string,
+  patch: Partial<MapObject>,
+): Map {
+  return updateLayer(map, (l) => ({
+    ...l,
+    objects: (l.objects ?? []).map((o) =>
+      o.id === id ? { ...o, ...patch } : o,
+    ),
+  }));
+}
+
+export function addWall(map: Map, wall: Wall): Map {
+  return updateLayer(map, (l) => ({
+    ...l,
+    walls: [...(l.walls ?? []), wall],
+  }));
+}
+
+export function removeWall(map: Map, id: string): Map {
+  return updateLayer(map, (l) => ({
+    ...l,
+    walls: (l.walls ?? []).filter((w) => w.id !== id),
+  }));
+}
+
 function updateLayer(map: Map, fn: (l: Layer) => Layer): Map {
   return {
     ...map,

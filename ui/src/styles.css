@@ -121,6 +121,91 @@ body {
   padding: 0.35rem 0.6rem;
 }
 
+.main {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  min-height: 0;
+  height: 100%;
+}
+
+.inspector {
+  background: var(--panel);
+  border-left: 1px solid #00000044;
+  padding: 0.85rem 0.95rem;
+  overflow-y: auto;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.inspector h3 {
+  margin: 0 0 0.3rem 0;
+  font-size: 0.95rem;
+  text-transform: capitalize;
+}
+
+.inspector .hint {
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.inspector .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.inspector .field label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inspector .field .value {
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 0.85rem;
+}
+
+.inspector .facing-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.inspector button.facing {
+  padding: 0.25rem 0.5rem;
+  min-width: 2.4rem;
+  background: #34373d;
+  color: var(--fg);
+  border: 1px solid #00000033;
+  border-radius: 3px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.inspector button.facing.active {
+  background: var(--accent);
+  color: #1c1d20;
+  border-color: transparent;
+}
+
+.inspector button.danger {
+  margin-top: 0.5rem;
+  background: #4a1d1d;
+  color: #ffb3b3;
+  border: 1px solid #6a2c2c;
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+
+.inspector button.danger:hover {
+  background: #5e2424;
+}
+
 .empty {
   display: grid;
   place-items: center;
