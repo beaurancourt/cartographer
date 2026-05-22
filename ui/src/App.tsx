@@ -7,7 +7,8 @@ import { exportImage, loadMap, newMap, saveMap } from "./ipc";
 import { OBJECT_TOOLS } from "./state";
 
 export function App() {
-  const { map, canUndo, canRedo, setMap, resetMap, undo, redo } = useMapHistory();
+  const { map, canUndo, canRedo, setMap, resetMap, replaceMap, commitMap, undo, redo } =
+    useMapHistory();
   const [path, setPath] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>("rect");
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -174,6 +175,8 @@ export function App() {
           <Editor
             map={map}
             setMap={setMap}
+            replaceMap={replaceMap}
+            commitMap={commitMap}
             tool={tool}
             selection={selection}
             setSelection={setSelection}

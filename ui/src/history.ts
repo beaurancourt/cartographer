@@ -15,6 +15,8 @@ type HistoryState = {
 type Action =
   | { type: "set"; map: Map }
   | { type: "reset"; map: Map | null }
+  | { type: "replace"; map: Map }
+  | { type: "commit"; previous: Map; current: Map }
   | { type: "undo" }
   | { type: "redo" };
 
@@ -29,6 +31,18 @@ function reducer(state: HistoryState, action: Action): HistoryState {
     }
     case "reset":
       return { past: [], current: action.map, future: [] };
+    case "replace":
+      // Mutate current without touching history. Used during drags so a
+      // multi-step move is one history entry, not one per pointer move.
+      return { ...state, current: action.map };
+    case "commit": {
+      if (action.previous === action.current) return state;
+      return {
+        past: [...state.past, action.previous].slice(-MAX_HISTORY),
+        current: action.current,
+        future: [],
+      };
+    }
     case "undo": {
       const prev = state.past[state.past.length - 1];
       if (!prev) return state;
@@ -61,6 +75,15 @@ export function useMapHistory() {
     (m: Map | null) => dispatch({ type: "reset", map: m }),
     [],
   );
+  const replaceMap = useCallback(
+    (m: Map) => dispatch({ type: "replace", map: m }),
+    [],
+  );
+  const commitMap = useCallback(
+    (previous: Map, current: Map) =>
+      dispatch({ type: "commit", previous, current }),
+    [],
+  );
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
   const redo = useCallback(() => dispatch({ type: "redo" }), []);
   return {
@@ -69,6 +92,8 @@ export function useMapHistory() {
     canRedo: state.future.length > 0,
     setMap,
     resetMap,
+    replaceMap,
+    commitMap,
     undo,
     redo,
   };

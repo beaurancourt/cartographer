@@ -41,6 +41,9 @@ type MoveDrag = {
   selection: Selection;
   startCell: [number, number];
   original: MoveOriginal;
+  // Map snapshot at drag-start, so a multi-step move collapses to one
+  // history entry on commit.
+  snapshot: Map;
 };
 
 type SelectionKind = "carve" | "object" | "wall";
@@ -49,6 +52,8 @@ export type Selection = { kind: SelectionKind; id: string };
 type Props = {
   map: Map;
   setMap: (m: Map) => void;
+  replaceMap: (m: Map) => void;
+  commitMap: (previous: Map, current: Map) => void;
   tool: Tool;
   selection: Selection | null;
   setSelection: (s: Selection | null) => void;
@@ -118,7 +123,15 @@ function pointToSegmentDist(
   return Math.hypot(px - cx, py - cy);
 }
 
-export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
+export function Editor({
+  map,
+  setMap,
+  replaceMap,
+  commitMap,
+  tool,
+  selection,
+  setSelection,
+}: Props) {
   const cell = map.grid.cell_size;
   const W = COLS * cell;
   const H = ROWS * cell;
@@ -292,7 +305,12 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
         const original = entityPosition(map, hit);
         if (original) {
           e.currentTarget.setPointerCapture(e.pointerId);
-          setMoveDrag({ selection: hit, startCell: [x, y], original });
+          setMoveDrag({
+            selection: hit,
+            startCell: [x, y],
+            original,
+            snapshot: map,
+          });
         }
       }
       return;
@@ -343,8 +361,10 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
       const { x, y } = cellFromEvent(e);
       const dx = x - moveDrag.startCell[0];
       const dy = y - moveDrag.startCell[1];
+      // replaceMap mutates state without touching history; the whole
+      // drag collapses to a single history entry on pointerup.
       const next = moveEntity(map, moveDrag.selection, moveDrag.original, dx, dy);
-      if (next !== map) setMap(next);
+      if (next !== map) replaceMap(next);
       return;
     }
     if (drag) {
@@ -369,6 +389,7 @@ export function Editor({ map, setMap, tool, selection, setSelection }: Props) {
     }
     if (moveDrag) {
       e.currentTarget.releasePointerCapture(e.pointerId);
+      commitMap(moveDrag.snapshot, map);
       setMoveDrag(null);
       return;
     }
