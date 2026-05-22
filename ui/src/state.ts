@@ -136,3 +136,16 @@ export const OBJECT_TOOLS = [
 ] as const;
 
 export type ObjectTool = (typeof OBJECT_TOOLS)[number]["id"];
+
+/// Snap denominator. The actual snap step is `1 / SnapMode` cells. 12 is the
+/// finest representable position (matches the base-12 internal coord system).
+export type SnapMode = 1 | 2 | 3 | 4 | 6 | 12;
+
+export const SNAP_OPTIONS: { value: SnapMode; label: string }[] = [
+  { value: 1, label: "1 cell" },
+  { value: 2, label: "½" },
+  { value: 3, label: "⅓" },
+  { value: 4, label: "¼" },
+  { value: 6, label: "⅙" },
+  { value: 12, label: "¹⁄₁₂" },
+];

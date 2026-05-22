@@ -4,13 +4,14 @@ import { Editor, type Selection, type Tool } from "./Editor";
 import { Inspector } from "./Inspector";
 import { useMapHistory } from "./history";
 import { exportImage, loadMap, newMap, saveMap } from "./ipc";
-import { OBJECT_TOOLS, type Map } from "./state";
+import { OBJECT_TOOLS, SNAP_OPTIONS, type Map, type SnapMode } from "./state";
 
 export function App() {
   const { map, canUndo, canRedo, setMap, resetMap, replaceMap, commitMap, undo, redo } =
     useMapHistory();
   const [path, setPath] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>("rect");
+  const [snap, setSnap] = useState<SnapMode>(1);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,6 +168,20 @@ export function App() {
           </ToolButton>
         ))}
         <div className="divider" />
+        <label className="snap-picker" title="Snap precision (1/12 cell minimum)">
+          Snap
+          <select
+            value={snap}
+            onChange={(e) => setSnap(Number(e.target.value) as SnapMode)}
+          >
+            {SNAP_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="divider" />
         {map && (
           <select
             className="style-picker"
@@ -197,6 +212,7 @@ export function App() {
             replaceMap={replaceMap}
             commitMap={commitMap}
             tool={tool}
+            snap={snap}
             selection={selection}
             setSelection={setSelection}
           />

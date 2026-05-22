@@ -83,6 +83,24 @@ body {
   font-family: ui-monospace, "SF Mono", monospace;
 }
 
+.toolbar .snap-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.toolbar .snap-picker select {
+  background: #34373d;
+  color: var(--fg);
+  border: 1px solid #00000033;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
 .toolbar .style-picker {
   background: #34373d;
   color: var(--fg);

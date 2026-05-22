@@ -14,6 +14,7 @@ import {
   updateWall,
   type Map,
   type ObjectTool,
+  type SnapMode,
 } from "./state";
 import { OBJECT_TOOLS } from "./state";
 
@@ -55,6 +56,7 @@ type Props = {
   replaceMap: (m: Map) => void;
   commitMap: (previous: Map, current: Map) => void;
   tool: Tool;
+  snap: SnapMode;
   selection: Selection | null;
   setSelection: (s: Selection | null) => void;
 };
@@ -129,9 +131,11 @@ export function Editor({
   replaceMap,
   commitMap,
   tool,
+  snap,
   selection,
   setSelection,
 }: Props) {
+  const step = 1 / snap;
   const cell = map.grid.cell_size;
   const W = COLS * cell;
   const H = ROWS * cell;
@@ -237,14 +241,22 @@ export function Editor({
     };
   }
 
+  // The cursor's "cell" is the top-left of the snap-sized square it's in.
   function cellFromEvent(e: React.PointerEvent): { x: number; y: number } {
     const { px, py } = pxFromEvent(e);
-    return { x: Math.floor(px / cell), y: Math.floor(py / cell) };
+    return {
+      x: Math.floor(px / cell / step) * step,
+      y: Math.floor(py / cell / step) * step,
+    };
   }
 
+  // For walls, snap to the nearest *corner* of the snap grid.
   function cornerFromEvent(e: React.PointerEvent): [number, number] {
     const { px, py } = pxFromEvent(e);
-    return [Math.round(px / cell), Math.round(py / cell)];
+    return [
+      Math.round(px / cell / step) * step,
+      Math.round(py / cell / step) * step,
+    ];
   }
 
   function hitTest(x: number, y: number, e: React.PointerEvent): Selection | null {
@@ -397,8 +409,10 @@ export function Editor({
     e.currentTarget.releasePointerCapture(e.pointerId);
     const x = Math.min(drag.x0, drag.x1);
     const y = Math.min(drag.y0, drag.y1);
-    const w = Math.abs(drag.x1 - drag.x0) + 1;
-    const h = Math.abs(drag.y1 - drag.y0) + 1;
+    // The drag includes the snap-square at both endpoints, so width grows by
+    // one step beyond the raw delta.
+    const w = Math.abs(drag.x1 - drag.x0) + step;
+    const h = Math.abs(drag.y1 - drag.y0) + step;
     setDrag(null);
     if (w <= 0 || h <= 0) return;
     const id = nextId("r", map.layers[0].carves);
@@ -439,6 +453,7 @@ export function Editor({
     } else if (selection.kind === "object") {
       const o = (layer.objects ?? []).find((o) => o.id === selection.id);
       if (!o) return null;
+      // Objects always occupy a single 1-cell footprint regardless of snap.
       return { kind: "box", x: o.at[0] * cell, y: o.at[1] * cell, w: cell, h: cell };
     } else {
       const w = (layer.walls ?? []).find((w) => w.id === selection.id);
@@ -453,8 +468,8 @@ export function Editor({
     (() => {
       const x = Math.min(drag.x0, drag.x1) * cell;
       const y = Math.min(drag.y0, drag.y1) * cell;
-      const w = (Math.abs(drag.x1 - drag.x0) + 1) * cell;
-      const h = (Math.abs(drag.y1 - drag.y0) + 1) * cell;
+      const w = (Math.abs(drag.x1 - drag.x0) + step) * cell;
+      const h = (Math.abs(drag.y1 - drag.y0) + step) * cell;
       return { x, y, w, h };
     })();
 
