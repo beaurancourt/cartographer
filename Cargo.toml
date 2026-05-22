@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/cartographer-core",
     "crates/cartographer-cli",
+    "crates/cartographer-tauri",
 ]
 
 [workspace.package]
@@ -25,6 +26,10 @@ usvg = "0.43"
 tiny-skia = "0.11"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 clap = { version = "4", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 
 [profile.release]
 lto = "thin"

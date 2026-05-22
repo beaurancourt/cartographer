@@ -9,9 +9,9 @@ The map file is a human-readable YAML. The UI mutates it on drag; the LLM writes
 
 ## Status
 
-Phase 1 (Rust core + CLI). The desktop app (Tauri + React) comes after the core is solid.
+Phase 2 — Tauri shell with read-only preview. You can render maps from the CLI and open a YAML file in the desktop app to preview it. Interactive carve-to-draw editing lands in Phase 3.
 
-## Quick start
+## Quick start — CLI
 
 ```sh
 # Render an example map to JPG
@@ -22,7 +22,23 @@ cargo run -p cartographer-cli -- validate examples/small-tomb.yaml
 
 # Dump the JSON Schema (useful for grounding an LLM)
 cargo run -p cartographer-cli -- schema > schema/map.schema.json
+
+# List built-in symbols
+cargo run -p cartographer-cli -- symbols
 ```
+
+## Quick start — desktop app
+
+```sh
+# One-time setup
+npm install                # installs the Tauri CLI at the workspace root
+npm --prefix ui install    # installs the React/Vite frontend deps
+
+# Run the dev app (first run rebuilds the full Rust dep tree, ~minutes)
+npm run tauri:dev
+```
+
+The app currently lets you `Open YAML…` and shows the rendered map. Edit-on-canvas is Phase 3.
 
 ## Map format
 

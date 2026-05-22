@@ -3,8 +3,10 @@
 Cargo.lock.bak
 
 # Tauri / frontend (added in Phase 2)
+/node_modules
 /ui/node_modules
 /ui/dist
+/ui/tsconfig.tsbuildinfo
 /crates/cartographer-tauri/target
 /crates/cartographer-tauri/gen
 

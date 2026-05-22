@@ -1,0 +1,17 @@
+{
+  "name": "cartographer-root",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Workspace root: delegates frontend tasks to ui/, runs Tauri CLI from here so it can find crates/cartographer-tauri/tauri.conf.json.",
+  "scripts": {
+    "dev": "npm --prefix ui run dev",
+    "build": "npm --prefix ui run build",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:info": "tauri info"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
