@@ -6,26 +6,25 @@ background:
   style: ink
 
 # Layout (cells):
-#   entry   [0..6]  × [0..6]    (6×6)
-#   gap@6
-#   hall    [7..14] × [1..4]    (7×3 hallway)
-#   gap@14
-#   chamber [15..23]× [0..7]    (8×7 main hall)
-#   gap south of chamber (2 cells)
-#   vault   [16..22]× [9..14]   (6×5 tomb)
+#   entry   [0..6]   × [0..6]    6×6
+#   gap@x=6
+#   hall    [7..14]  × [1..4]    7×3 hallway
+#   gap@x=14
+#   chamber [15..23] × [0..8]    8×8 main hall
+#   gap@y=8 (secret door here)
+#   vault   [16..22] × [9..14]   6×5 tomb
 
 layers:
   - id: main
     carves:
       - { id: entry,   rect: [0,  0,  6, 6] }
       - { id: hall,    rect: [7,  1,  7, 3] }
-      - { id: chamber, rect: [15, 0,  8, 7] }
+      - { id: chamber, rect: [15, 0,  8, 8] }
       - { id: vault,   rect: [16, 9,  6, 5] }
-      - { id: c1,      path: [[18, 7], [18, 9]], width: 1 }
     objects:
       - { id: d1, type: door,        at: [6,  2], facing: ew }   # entry → hall
       - { id: d2, type: door,        at: [14, 2], facing: ew }   # hall → chamber
-      - { id: d3, type: secret-door, at: [18, 8], facing: ns }   # in chamber→vault gap
+      - { id: d3, type: secret-door, at: [18, 8], facing: ns }   # chamber → vault
       - { id: t1, type: pit-trap,    at: [10, 2] }
       - { id: a1, type: altar,       at: [19, 1] }
       - { id: f1, type: fountain,    at: [16, 5] }
