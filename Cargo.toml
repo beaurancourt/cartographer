@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cartographer-core",
+    "crates/cartographer-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/beaurancourt/cartographer"
+authors = ["Beau Rancourt <beau.rancourt@proton.me>"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1"
+schemars = { version = "0.8", features = ["preserve_order"] }
+thiserror = "1"
+anyhow = "1"
+geo = "0.28"
+resvg = "0.43"
+usvg = "0.43"
+tiny-skia = "0.11"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

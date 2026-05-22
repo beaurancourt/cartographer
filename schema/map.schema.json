@@ -1,0 +1,327 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "Background": {
+      "properties": {
+        "style": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/BackgroundStyle"
+            }
+          ],
+          "default": "parchment"
+        }
+      },
+      "type": "object"
+    },
+    "BackgroundStyle": {
+      "enum": [
+        "parchment",
+        "clean",
+        "blueprint"
+      ],
+      "type": "string"
+    },
+    "Corridor": {
+      "description": "A corridor — a strip of given width along an axis-aligned polyline.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "description": "Sequence of `[x, y]` waypoints in cell coordinates. Segments must be horizontal or vertical (axis-aligned).",
+          "items": {
+            "items": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "width": {
+          "default": 1,
+          "description": "Width in cells. Defaults to 1.",
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ],
+      "type": "object"
+    },
+    "Facing": {
+      "oneOf": [
+        {
+          "enum": [
+            "n",
+            "s",
+            "e",
+            "w"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "North-South — door/passage oriented along the Y axis.",
+          "enum": [
+            "ns"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "East-West — door/passage oriented along the X axis.",
+          "enum": [
+            "ew"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "FloorStyle": {
+      "enum": [
+        "hatched",
+        "solid",
+        "dotted"
+      ],
+      "type": "string"
+    },
+    "Grid": {
+      "properties": {
+        "cell_size": {
+          "description": "Pixels per cell at 1.0 zoom. Default 50.",
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "ft_per_cell": {
+          "description": "Informational only — how many real-world units one cell represents.",
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "units": {
+          "description": "Informational only (e.g. \"ft\", \"m\").",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "cell_size"
+      ],
+      "type": "object"
+    },
+    "Layer": {
+      "properties": {
+        "corridors": {
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/Corridor"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "objects": {
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/MapObject"
+          },
+          "type": "array"
+        },
+        "rooms": {
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/Room"
+          },
+          "type": "array"
+        },
+        "style": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/LayerStyle"
+            }
+          ],
+          "default": {
+            "floor": "hatched",
+            "wall": "solid"
+          }
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "LayerStyle": {
+      "properties": {
+        "floor": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/FloorStyle"
+            }
+          ],
+          "default": "hatched"
+        },
+        "wall": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/WallStyle"
+            }
+          ],
+          "default": "solid"
+        }
+      },
+      "type": "object"
+    },
+    "MapObject": {
+      "description": "A placed symbol/object — door, trap, stairs, altar, etc. The `kind` references a symbol registered in [`crate::symbols`].",
+      "properties": {
+        "at": {
+          "description": "Cell coordinate where the object is centered.",
+          "items": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "facing": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Facing"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Orientation. Doors typically use `ew`/`ns`; stairs use `n`/`s`/`e`/`w`."
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "description": "Symbol id, e.g. `door`, `secret-door`, `pit-trap`, `stairs-down`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "id",
+        "type"
+      ],
+      "type": "object"
+    },
+    "Note": {
+      "properties": {
+        "at": {
+          "items": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Room": {
+      "description": "A rectangular room, expressed in cell coordinates.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "rect": {
+          "description": "`[x, y, width, height]` in cells. `x`/`y` may be negative; `w`/`h` > 0.",
+          "items": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "rect"
+      ],
+      "type": "object"
+    },
+    "WallStyle": {
+      "enum": [
+        "solid"
+      ],
+      "type": "string"
+    }
+  },
+  "description": "A complete cartographer map.",
+  "properties": {
+    "background": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Background"
+        }
+      ],
+      "default": {
+        "style": "parchment"
+      }
+    },
+    "grid": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/Grid"
+        }
+      ],
+      "default": {
+        "cell_size": 50,
+        "ft_per_cell": 5,
+        "units": "ft"
+      }
+    },
+    "layers": {
+      "items": {
+        "$ref": "#/definitions/Layer"
+      },
+      "type": "array"
+    },
+    "notes": {
+      "default": [],
+      "items": {
+        "$ref": "#/definitions/Note"
+      },
+      "type": "array"
+    },
+    "version": {
+      "description": "Format version. Currently always 1.",
+      "format": "uint32",
+      "minimum": 0.0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "layers",
+    "version"
+  ],
+  "title": "Map",
+  "type": "object"
+}

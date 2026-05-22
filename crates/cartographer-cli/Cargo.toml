@@ -1,0 +1,18 @@
+[package]
+name = "cartographer-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "CLI for cartographer: render, validate, and dump schemas for map files."
+
+[[bin]]
+name = "cartographer"
+path = "src/main.rs"
+
+[dependencies]
+cartographer-core = { path = "../cartographer-core" }
+clap = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
