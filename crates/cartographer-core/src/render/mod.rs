@@ -21,6 +21,8 @@ pub struct RenderOptions {
     /// If true, skip the background fill rect — the host (editor) supplies
     /// its own backdrop and grid.
     pub transparent_background: bool,
+    /// If false, skip layers marked `gm_only`. Defaults to true (GM view).
+    pub show_gm: bool,
 }
 
 impl Default for RenderOptions {
@@ -30,6 +32,7 @@ impl Default for RenderOptions {
             show_grid: true,
             viewbox: None,
             transparent_background: false,
+            show_gm: true,
         }
     }
 }
@@ -70,6 +73,9 @@ pub fn render_svg(map: &Map, opts: &RenderOptions) -> String {
     }
 
     for layer in &map.layers {
+        if layer.gm_only && !opts.show_gm {
+            continue;
+        }
         render_layer(&mut s, layer, cell_px, &theme, opts);
     }
 
@@ -92,6 +98,8 @@ pub fn render_svg(map: &Map, opts: &RenderOptions) -> String {
 fn layers_bounds(map: &Map) -> Option<(f64, f64, f64, f64)> {
     let mut acc: Option<(f64, f64, f64, f64)> = None;
     for layer in &map.layers {
+        // Always include all layers in the bbox so the viewport doesn't snap
+        // around when the user toggles GM/Player view.
         if let Some(b) = geometry::layer_bounds(layer) {
             acc = Some(match acc {
                 None => b,

@@ -84,7 +84,13 @@ pub struct Layer {
     pub walls: Vec<Wall>,
     #[serde(default)]
     pub objects: Vec<MapObject>,
+    /// If true, this layer's contents are rendered only in GM view; player
+    /// view skips it entirely (secret doors, trap notes, monster placements).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub gm_only: bool,
 }
+
+fn is_false(b: &bool) -> bool { !*b }
 
 /// An axis-aligned wall segment, drawn as a thick black line on top of the
 /// floor. Use to mark a wall where two carves touch (or anywhere inside a

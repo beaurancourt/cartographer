@@ -4,7 +4,13 @@ import { Editor, type Selection, type Tool } from "./Editor";
 import { Inspector } from "./Inspector";
 import { useMapHistory } from "./history";
 import { exportImage, loadMap, newMap, saveMap } from "./ipc";
-import { OBJECT_TOOLS, SNAP_OPTIONS, type Map, type SnapMode } from "./state";
+import {
+  OBJECT_TOOLS,
+  SNAP_OPTIONS,
+  type Map,
+  type SnapMode,
+  type View,
+} from "./state";
 
 export function App() {
   const { map, canUndo, canRedo, setMap, resetMap, replaceMap, commitMap, undo, redo } =
@@ -12,6 +18,7 @@ export function App() {
   const [path, setPath] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>("rect");
   const [snap, setSnap] = useState<SnapMode>(1);
+  const [view, setView] = useState<View>("gm");
   const [selection, setSelection] = useState<Selection | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -168,6 +175,21 @@ export function App() {
           </ToolButton>
         ))}
         <div className="divider" />
+        <div className="view-toggle" title="GM sees everything; Player hides gm-only layers">
+          <button
+            className={view === "gm" ? "active" : ""}
+            onClick={() => setView("gm")}
+          >
+            GM
+          </button>
+          <button
+            className={view === "player" ? "active" : ""}
+            onClick={() => setView("player")}
+          >
+            Player
+          </button>
+        </div>
+        <div className="divider" />
         <label className="snap-picker" title="Snap precision (1/12 cell minimum)">
           Snap
           <select
@@ -213,6 +235,7 @@ export function App() {
             commitMap={commitMap}
             tool={tool}
             snap={snap}
+            view={view}
             selection={selection}
             setSelection={setSelection}
           />

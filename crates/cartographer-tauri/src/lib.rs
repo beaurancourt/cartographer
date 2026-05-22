@@ -39,6 +39,8 @@ struct RenderArgs {
     /// viewbox to its canvas dimensions.
     viewbox: Option<[f64; 4]>,
     transparent_background: Option<bool>,
+    /// Show layers tagged `gm_only`. Default true (GM view).
+    show_gm: Option<bool>,
 }
 
 #[tauri::command]
@@ -48,6 +50,7 @@ fn render_map_svg(map: Map, args: Option<RenderArgs>) -> Result<String, CmdError
         show_grid: args.show_grid.unwrap_or(true),
         viewbox: args.viewbox,
         transparent_background: args.transparent_background.unwrap_or(false),
+        show_gm: args.show_gm.unwrap_or(true),
         ..Default::default()
     };
     Ok(render_svg(&map, &opts))
@@ -59,13 +62,24 @@ fn new_map() -> Map {
         version: 1,
         grid: Grid::default(),
         background: Background { style: BackgroundStyle::Ink },
-        layers: vec![Layer {
-            id: "main".into(),
-            style: LayerStyle::default(),
-            carves: vec![],
-            walls: vec![],
-            objects: vec![],
-        }],
+        layers: vec![
+            Layer {
+                id: "main".into(),
+                style: LayerStyle::default(),
+                carves: vec![],
+                walls: vec![],
+                objects: vec![],
+                gm_only: false,
+            },
+            Layer {
+                id: "secrets".into(),
+                style: LayerStyle::default(),
+                carves: vec![],
+                walls: vec![],
+                objects: vec![],
+                gm_only: true,
+            },
+        ],
         notes: vec![],
     }
 }

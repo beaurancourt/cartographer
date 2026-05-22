@@ -15,6 +15,7 @@ import {
   type Map,
   type ObjectTool,
   type SnapMode,
+  type View,
 } from "./state";
 import { OBJECT_TOOLS } from "./state";
 
@@ -57,31 +58,35 @@ type Props = {
   commitMap: (previous: Map, current: Map) => void;
   tool: Tool;
   snap: SnapMode;
+  view: View;
   selection: Selection | null;
   setSelection: (s: Selection | null) => void;
 };
 
 function entityPosition(map: Map, sel: Selection): MoveOriginal | null {
-  const layer = map.layers[0];
-  if (sel.kind === "carve") {
-    const c = layer.carves.find((c) => c.id === sel.id);
-    if (!c || !isRectCarve(c)) return null;
-    return { kind: "rect", rect: [...c.rect] as [number, number, number, number] };
-  }
-  if (sel.kind === "object") {
-    const o = (layer.objects ?? []).find((o) => o.id === sel.id);
-    return o ? { kind: "at", at: [o.at[0], o.at[1]] } : null;
-  }
-  const w = (layer.walls ?? []).find((w) => w.id === sel.id);
-  return w
-    ? {
-        kind: "segment",
-        segment: [
-          [w.segment[0][0], w.segment[0][1]],
-          [w.segment[1][0], w.segment[1][1]],
-        ],
+  for (const layer of map.layers) {
+    if (sel.kind === "carve") {
+      const c = layer.carves.find((c) => c.id === sel.id);
+      if (c && isRectCarve(c)) {
+        return { kind: "rect", rect: [...c.rect] as [number, number, number, number] };
       }
-    : null;
+    } else if (sel.kind === "object") {
+      const o = (layer.objects ?? []).find((o) => o.id === sel.id);
+      if (o) return { kind: "at", at: [o.at[0], o.at[1]] };
+    } else {
+      const w = (layer.walls ?? []).find((w) => w.id === sel.id);
+      if (w) {
+        return {
+          kind: "segment",
+          segment: [
+            [w.segment[0][0], w.segment[0][1]],
+            [w.segment[1][0], w.segment[1][1]],
+          ],
+        };
+      }
+    }
+  }
+  return null;
 }
 
 function moveEntity(
@@ -132,6 +137,7 @@ export function Editor({
   commitMap,
   tool,
   snap,
+  view,
   selection,
   setSelection,
 }: Props) {
@@ -215,6 +221,7 @@ export function Editor({
       viewbox: [0, 0, W, H],
       transparentBackground: true,
       showGrid: true,
+      showGm: view === "gm",
     })
       .then((s) => {
         if (!cancel) setSvg(s);
@@ -225,7 +232,7 @@ export function Editor({
     return () => {
       cancel = true;
     };
-  }, [map, W, H]);
+  }, [map, W, H, view]);
 
   function pxFromEvent(e: React.PointerEvent): { px: number; py: number } {
     // Use the inner content's screen rect — it reflects the pan/zoom
@@ -260,28 +267,35 @@ export function Editor({
   }
 
   function hitTest(x: number, y: number, e: React.PointerEvent): Selection | null {
-    const layer = map.layers[0];
-    if (!layer) return null;
-    // Walls are very thin; hit-test against the line with a small tolerance.
     const { px, py } = pxFromEvent(e);
     const tol = cell * 0.25;
-    for (const w of [...(layer.walls ?? [])].reverse()) {
-      const [[ax, ay], [bx, by]] = w.segment;
-      const ax_px = ax * cell, ay_px = ay * cell, bx_px = bx * cell, by_px = by * cell;
-      const dist = pointToSegmentDist(px, py, ax_px, ay_px, bx_px, by_px);
-      if (dist <= tol) return { kind: "wall", id: w.id };
-    }
-    // Objects on top of carves.
-    for (const obj of [...(layer.objects ?? [])].reverse()) {
-      if (obj.at[0] === x && obj.at[1] === y) {
-        return { kind: "object", id: obj.id };
+    // Iterate all layers; later layers visually sit on top, so search them
+    // first (reverse).
+    const layers = [...map.layers].reverse();
+    for (const layer of layers) {
+      for (const w of [...(layer.walls ?? [])].reverse()) {
+        const [[ax, ay], [bx, by]] = w.segment;
+        const dist = pointToSegmentDist(
+          px,
+          py,
+          ax * cell,
+          ay * cell,
+          bx * cell,
+          by * cell,
+        );
+        if (dist <= tol) return { kind: "wall", id: w.id };
       }
-    }
-    for (const c of [...layer.carves].reverse()) {
-      if (isRectCarve(c)) {
-        const [cx, cy, cw, ch] = c.rect;
-        if (x >= cx && x < cx + cw && y >= cy && y < cy + ch) {
-          return { kind: "carve", id: c.id };
+      for (const obj of [...(layer.objects ?? [])].reverse()) {
+        if (obj.at[0] <= x && x < obj.at[0] + 1 && obj.at[1] <= y && y < obj.at[1] + 1) {
+          return { kind: "object", id: obj.id };
+        }
+      }
+      for (const c of [...layer.carves].reverse()) {
+        if (isRectCarve(c)) {
+          const [cx, cy, cw, ch] = c.rect;
+          if (x >= cx && x < cx + cw && y >= cy && y < cy + ch) {
+            return { kind: "carve", id: c.id };
+          }
         }
       }
     }
@@ -339,7 +353,8 @@ export function Editor({
         if (Math.abs(ex - sx) >= Math.abs(ey - sy)) ey = sy;
         else ex = sx;
         if (ex === sx && ey === sy) return; // ignore zero-length
-        const id = nextId("w", map.layers[0].walls ?? []);
+        const allWalls = map.layers.flatMap((l) => l.walls ?? []);
+        const id = nextId("w", allWalls);
         setMap(addWall(map, { id, segment: [[sx, sy], [ex, ey]] }));
         setWallDraft(null);
         setSelection({ kind: "wall", id });
@@ -349,7 +364,8 @@ export function Editor({
 
     if (isObjectTool(tool)) {
       const def = OBJECT_TOOLS.find((t) => t.id === tool)!;
-      const id = nextId("o", map.layers[0].objects ?? []);
+      const allObjects = map.layers.flatMap((l) => l.objects ?? []);
+      const id = nextId("o", allObjects);
       const obj = {
         id,
         type: tool,
@@ -415,7 +431,8 @@ export function Editor({
     const h = Math.abs(drag.y1 - drag.y0) + step;
     setDrag(null);
     if (w <= 0 || h <= 0) return;
-    const id = nextId("r", map.layers[0].carves);
+    const allCarves = map.layers.flatMap((l) => l.carves);
+    const id = nextId("r", allCarves);
     setMap(addCarve(map, { id, rect: [x, y, w, h] }));
     setSelection({ kind: "carve", id });
   }
@@ -438,29 +455,36 @@ export function Editor({
     }
   }
 
-  // Selection indicator (box or line, in pixels).
+  // Selection indicator (box or line, in pixels). Searches every layer.
   type SelDraw =
     | { kind: "box"; x: number; y: number; w: number; h: number }
     | { kind: "line"; x1: number; y1: number; x2: number; y2: number };
   const selectionDraw: SelDraw | null = (() => {
     if (!selection) return null;
-    const layer = map.layers[0];
-    if (selection.kind === "carve") {
-      const c = layer.carves.find((c) => c.id === selection.id);
-      if (!c || !isRectCarve(c)) return null;
-      const [x, y, w, h] = c.rect;
-      return { kind: "box", x: x * cell, y: y * cell, w: w * cell, h: h * cell };
-    } else if (selection.kind === "object") {
-      const o = (layer.objects ?? []).find((o) => o.id === selection.id);
-      if (!o) return null;
-      // Objects always occupy a single 1-cell footprint regardless of snap.
-      return { kind: "box", x: o.at[0] * cell, y: o.at[1] * cell, w: cell, h: cell };
-    } else {
-      const w = (layer.walls ?? []).find((w) => w.id === selection.id);
-      if (!w) return null;
-      const [[ax, ay], [bx, by]] = w.segment;
-      return { kind: "line", x1: ax * cell, y1: ay * cell, x2: bx * cell, y2: by * cell };
+    for (const layer of map.layers) {
+      if (selection.kind === "carve") {
+        const c = layer.carves.find((c) => c.id === selection.id);
+        if (c && isRectCarve(c)) {
+          const [x, y, w, h] = c.rect;
+          return { kind: "box", x: x * cell, y: y * cell, w: w * cell, h: h * cell };
+        }
+      } else if (selection.kind === "object") {
+        const o = (layer.objects ?? []).find((o) => o.id === selection.id);
+        if (o) {
+          return { kind: "box", x: o.at[0] * cell, y: o.at[1] * cell, w: cell, h: cell };
+        }
+      } else {
+        const w = (layer.walls ?? []).find((w) => w.id === selection.id);
+        if (w) {
+          const [[ax, ay], [bx, by]] = w.segment;
+          return {
+            kind: "line",
+            x1: ax * cell, y1: ay * cell, x2: bx * cell, y2: by * cell,
+          };
+        }
+      }
     }
+    return null;
   })();
 
   const dragPreview =

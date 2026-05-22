@@ -21,6 +21,8 @@ export type RenderArgs = {
   showGrid?: boolean;
   viewbox?: [number, number, number, number];
   transparentBackground?: boolean;
+  /// Include layers marked gm_only. Default true (GM view).
+  showGm?: boolean;
 };
 
 export async function renderMapSvg(map: Map, args: RenderArgs = {}): Promise<string> {

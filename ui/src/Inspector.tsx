@@ -1,9 +1,11 @@
 import type { Selection } from "./Editor";
 import {
+  findEntityLayer,
   isRectCarve,
   removeCarve,
   removeObject,
   removeWall,
+  setEntityGmOnly,
   updateCarve,
   updateObject,
   updateWall,
@@ -48,7 +50,23 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
     );
   }
 
-  const layer = map.layers[0];
+  // The selected entity may live on any layer.
+  const layerIdx = findEntityLayer(map, selection.id);
+  const layer = map.layers[layerIdx] ?? map.layers[0];
+  const gmOnly = Boolean(layer.gm_only);
+
+  function gmOnlyToggle() {
+    return (
+      <label className="gm-only-toggle">
+        <input
+          type="checkbox"
+          checked={gmOnly}
+          onChange={(e) => setMap(setEntityGmOnly(map, selection!.id, e.target.checked))}
+        />
+        GM only (hide from players)
+      </label>
+    );
+  }
 
   if (selection.kind === "carve") {
     const found = layer.carves.find((c) => c.id === selection.id);
@@ -80,6 +98,7 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
             onChange={(n) => set(3, Math.max(1, n))}
           />
         </div>
+        {gmOnlyToggle()}
         <button
           className="danger"
           onClick={() => {
@@ -117,6 +136,7 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
           <NumberField label="x2" value={bx} onChange={(n) => setEnd(1, 0, n)} />
           <NumberField label="y2" value={by} onChange={(n) => setEnd(1, 1, n)} />
         </div>
+        {gmOnlyToggle()}
         <button
           className="danger"
           onClick={() => {
@@ -168,6 +188,7 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
           ))}
         </div>
       </div>
+      {gmOnlyToggle()}
       <button
         className="danger"
         onClick={() => {

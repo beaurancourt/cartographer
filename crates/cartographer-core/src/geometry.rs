@@ -150,6 +150,7 @@ mod tests {
             carves,
             walls: vec![],
             objects,
+            gm_only: false,
         }
     }
 
