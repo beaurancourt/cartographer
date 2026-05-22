@@ -17,8 +17,14 @@ export async function saveMap(map: Map, path: string): Promise<void> {
   await invoke("save_map", { map, path });
 }
 
-export async function renderMapSvg(map: Map, showGrid = true): Promise<string> {
-  return await invoke<string>("render_map_svg", { map, showGrid });
+export type RenderArgs = {
+  showGrid?: boolean;
+  viewbox?: [number, number, number, number];
+  transparentBackground?: boolean;
+};
+
+export async function renderMapSvg(map: Map, args: RenderArgs = {}): Promise<string> {
+  return await invoke<string>("render_map_svg", { map, args });
 }
 
 export async function exportImage(map: Map, path: string): Promise<void> {

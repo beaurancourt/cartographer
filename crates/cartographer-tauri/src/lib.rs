@@ -31,9 +31,25 @@ fn parse_map(yaml: String) -> Result<Map, CmdError> {
     Ok(load_yaml(&yaml)?)
 }
 
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct RenderArgs {
+    show_grid: Option<bool>,
+    /// `[x, y, width, height]` in pixel units. Editor uses this to lock the
+    /// viewbox to its canvas dimensions.
+    viewbox: Option<[f64; 4]>,
+    transparent_background: Option<bool>,
+}
+
 #[tauri::command]
-fn render_map_svg(map: Map, show_grid: Option<bool>) -> Result<String, CmdError> {
-    let opts = RenderOptions { show_grid: show_grid.unwrap_or(true), ..Default::default() };
+fn render_map_svg(map: Map, args: Option<RenderArgs>) -> Result<String, CmdError> {
+    let args = args.unwrap_or_default();
+    let opts = RenderOptions {
+        show_grid: args.show_grid.unwrap_or(true),
+        viewbox: args.viewbox,
+        transparent_background: args.transparent_background.unwrap_or(false),
+        ..Default::default()
+    };
     Ok(render_svg(&map, &opts))
 }
 

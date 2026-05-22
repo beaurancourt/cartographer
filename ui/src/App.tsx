@@ -1,29 +1,46 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Editor } from "./Editor";
+import { Editor, type Tool } from "./Editor";
+import { useMapHistory } from "./history";
 import { exportImage, loadMap, newMap, saveMap } from "./ipc";
-import type { Map } from "./state";
+import { OBJECT_TOOLS } from "./state";
 
-type Tool = "select" | "rect";
+type Selection = { kind: "carve" | "object"; id: string };
 
 export function App() {
-  const [map, setMap] = useState<Map | null>(null);
+  const { map, canUndo, canRedo, setMap, resetMap, undo, redo } = useMapHistory();
   const [path, setPath] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>("rect");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleNew() {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      if (e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((e.key === "z" && e.shiftKey) || e.key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo]);
+
+  const handleNew = useCallback(async () => {
     setError(null);
     try {
       const m = await newMap();
-      setMap(m);
+      resetMap(m);
       setPath(null);
-      setSelectedId(null);
+      setSelection(null);
     } catch (e) {
       setError(String(e));
     }
-  }
+  }, [resetMap]);
 
   async function handleOpen() {
     setError(null);
@@ -34,9 +51,9 @@ export function App() {
     if (!picked || typeof picked !== "string") return;
     try {
       const m = await loadMap(picked);
-      setMap(m);
+      resetMap(m);
       setPath(picked);
-      setSelectedId(null);
+      setSelection(null);
     } catch (e) {
       setError(String(e));
     }
@@ -93,12 +110,25 @@ export function App() {
           Export…
         </button>
         <div className="divider" />
+        <button onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">
+          ↶
+        </button>
+        <button onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">
+          ↷
+        </button>
+        <div className="divider" />
         <ToolButton current={tool} value="rect" onClick={setTool}>
           Rectangle
         </ToolButton>
         <ToolButton current={tool} value="select" onClick={setTool}>
           Select
         </ToolButton>
+        <div className="divider" />
+        {OBJECT_TOOLS.map((t) => (
+          <ToolButton key={t.id} current={tool} value={t.id} onClick={setTool}>
+            {t.label}
+          </ToolButton>
+        ))}
         <div className="spacer" />
         {path && <span className="path">{path}</span>}
       </div>
@@ -108,8 +138,8 @@ export function App() {
           map={map}
           setMap={setMap}
           tool={tool}
-          selectedId={selectedId}
-          setSelectedId={setSelectedId}
+          selection={selection}
+          setSelection={setSelection}
         />
       ) : (
         <div className="empty">
@@ -117,7 +147,8 @@ export function App() {
           <p>
             Click <strong>New</strong> to start a fresh map, or{" "}
             <strong>Open…</strong> to load a YAML file. Drag with the{" "}
-            <strong>Rectangle</strong> tool to carve rooms.
+            <strong>Rectangle</strong> tool to carve rooms; click with an
+            object tool to place doors, traps, stairs, etc.
           </p>
         </div>
       )}

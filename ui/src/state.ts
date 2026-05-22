@@ -46,19 +46,50 @@ export function nextId(prefix: string, existing: { id: string }[]): string {
 }
 
 export function addCarve(map: Map, carve: Carve): Map {
-  return {
-    ...map,
-    layers: map.layers.map((l, i) =>
-      i === 0 ? { ...l, carves: [...l.carves, carve] } : l,
-    ),
-  };
+  return updateLayer(map, (l) => ({ ...l, carves: [...l.carves, carve] }));
 }
 
 export function removeCarve(map: Map, id: string): Map {
+  return updateLayer(map, (l) => ({
+    ...l,
+    carves: l.carves.filter((c) => c.id !== id),
+  }));
+}
+
+export function addObject(map: Map, obj: MapObject): Map {
+  return updateLayer(map, (l) => ({
+    ...l,
+    objects: [...(l.objects ?? []), obj],
+  }));
+}
+
+export function removeObject(map: Map, id: string): Map {
+  return updateLayer(map, (l) => ({
+    ...l,
+    objects: (l.objects ?? []).filter((o) => o.id !== id),
+  }));
+}
+
+function updateLayer(map: Map, fn: (l: Layer) => Layer): Map {
   return {
     ...map,
-    layers: map.layers.map((l, i) =>
-      i === 0 ? { ...l, carves: l.carves.filter((c) => c.id !== id) } : l,
-    ),
+    layers: map.layers.map((l, i) => (i === 0 ? fn(l) : l)),
   };
 }
+
+/// Object kinds we expose as toolbar tools. Defaults pre-fill the placed
+/// MapObject — facing is `ew` for doors (slot bridges horizontal gap),
+/// `s` for stairs (going off-south), unset otherwise.
+export const OBJECT_TOOLS = [
+  { id: "door", label: "Door", defaultFacing: "ew" as const },
+  { id: "secret-door", label: "Secret door", defaultFacing: "ew" as const },
+  { id: "locked-door", label: "Locked door", defaultFacing: "ew" as const },
+  { id: "pit-trap", label: "Pit trap" },
+  { id: "stairs-down", label: "Stairs ↓", defaultFacing: "s" as const },
+  { id: "stairs-up", label: "Stairs ↑", defaultFacing: "n" as const },
+  { id: "altar", label: "Altar" },
+  { id: "fountain", label: "Fountain" },
+  { id: "column", label: "Column" },
+] as const;
+
+export type ObjectTool = (typeof OBJECT_TOOLS)[number]["id"];

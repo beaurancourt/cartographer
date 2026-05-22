@@ -10,15 +10,27 @@ use std::fmt::Write as _;
 
 #[derive(Debug, Clone)]
 pub struct RenderOptions {
-    /// Padding (in cells) around the bounding box.
+    /// Padding (in cells) around the bounding box. Ignored if `viewbox` is set.
     pub padding_cells: f64,
     /// Whether to draw the grid overlay on the floor.
     pub show_grid: bool,
+    /// Override the viewBox. `[x, y, w, h]` in pixel units (cell_size already
+    /// applied). Useful for the editor which keeps a fixed canvas regardless
+    /// of map size.
+    pub viewbox: Option<[f64; 4]>,
+    /// If true, skip the background fill rect — the host (editor) supplies
+    /// its own backdrop and grid.
+    pub transparent_background: bool,
 }
 
 impl Default for RenderOptions {
     fn default() -> Self {
-        Self { padding_cells: 2.0, show_grid: true }
+        Self {
+            padding_cells: 2.0,
+            show_grid: true,
+            viewbox: None,
+            transparent_background: false,
+        }
     }
 }
 
@@ -26,12 +38,20 @@ impl Default for RenderOptions {
 pub fn render_svg(map: &Map, opts: &RenderOptions) -> String {
     let cell_px = map.grid.cell_size as f64;
 
-    let (min_cx, min_cy, max_cx, max_cy) = layers_bounds(map).unwrap_or((0.0, 0.0, 10.0, 10.0));
-    let pad = opts.padding_cells;
-    let vb_x = (min_cx - pad) * cell_px;
-    let vb_y = (min_cy - pad) * cell_px;
-    let vb_w = (max_cx - min_cx + pad * 2.0) * cell_px;
-    let vb_h = (max_cy - min_cy + pad * 2.0) * cell_px;
+    let (vb_x, vb_y, vb_w, vb_h) = match opts.viewbox {
+        Some([x, y, w, h]) => (x, y, w, h),
+        None => {
+            let (min_cx, min_cy, max_cx, max_cy) =
+                layers_bounds(map).unwrap_or((0.0, 0.0, 10.0, 10.0));
+            let pad = opts.padding_cells;
+            (
+                (min_cx - pad) * cell_px,
+                (min_cy - pad) * cell_px,
+                (max_cx - min_cx + pad * 2.0) * cell_px,
+                (max_cy - min_cy + pad * 2.0) * cell_px,
+            )
+        }
+    };
 
     let theme = theme_for(map.background.style);
     let mut s = String::with_capacity(8192);
@@ -41,11 +61,13 @@ pub fn render_svg(map: &Map, opts: &RenderOptions) -> String {
         r#"<svg xmlns="http://www.w3.org/2000/svg" width="{vb_w:.0}" height="{vb_h:.0}" viewBox="{vb_x:.2} {vb_y:.2} {vb_w:.2} {vb_h:.2}">"#
     );
 
-    let _ = write!(
-        s,
-        r#"<rect x="{vb_x:.2}" y="{vb_y:.2}" width="{vb_w:.2}" height="{vb_h:.2}" fill="{}"/>"#,
-        theme.background
-    );
+    if !opts.transparent_background {
+        let _ = write!(
+            s,
+            r#"<rect x="{vb_x:.2}" y="{vb_y:.2}" width="{vb_w:.2}" height="{vb_h:.2}" fill="{}"/>"#,
+            theme.background
+        );
+    }
 
     for layer in &map.layers {
         render_layer(&mut s, layer, cell_px, &theme, opts);
