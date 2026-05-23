@@ -220,12 +220,6 @@ fn write_door(s: &mut String, door: &Door, cell_px: f64, view: View) {
     let uy = dy / len;
     let nx = -uy;
     let ny = ux;
-    let t = cell_px * 0.18;
-    let c1 = (ax + nx * t, ay + ny * t);
-    let c2 = (bx + nx * t, by + ny * t);
-    let c3 = (bx - nx * t, by - ny * t);
-    let c4 = (ax - nx * t, ay - ny * t);
-    let stroke_w = cell_px * 0.06;
     let mx = (ax + bx) / 2.0;
     let my = (ay + by) / 2.0;
 
@@ -237,22 +231,40 @@ fn write_door(s: &mut String, door: &Door, cell_px: f64, view: View) {
 
     match kind {
         DoorKind::Door | DoorKind::LockedDoor => {
-            let cap = cell_px * 0.26;
+            // Two stacked rectangles: a thicker black "wall" band that gives
+            // the door its embedded look, and a smaller white panel inside.
+            // The wall extends slightly past the segment endpoints; the panel
+            // is inset, leaving visible black wall stubs along the segment.
+            let wall_thick = cell_px * 0.30;
+            let wall_pad = cell_px * 0.05;
+            let panel_thick = cell_px * 0.13;
+            let panel_inset = cell_px * 0.18;
+            let stroke_w = cell_px * 0.05;
+
+            let wa = (ax - ux * wall_pad, ay - uy * wall_pad);
+            let wb = (bx + ux * wall_pad, by + uy * wall_pad);
+            let wc1 = (wa.0 + nx * wall_thick, wa.1 + ny * wall_thick);
+            let wc2 = (wb.0 + nx * wall_thick, wb.1 + ny * wall_thick);
+            let wc3 = (wb.0 - nx * wall_thick, wb.1 - ny * wall_thick);
+            let wc4 = (wa.0 - nx * wall_thick, wa.1 - ny * wall_thick);
             let _ = write!(
                 s,
-                r#"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}"/>"#,
-                ax + nx * cap, ay + ny * cap, ax - nx * cap, ay - ny * cap
+                r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="{black}"/>"#,
+                wc1.0, wc1.1, wc2.0, wc2.1, wc3.0, wc3.1, wc4.0, wc4.1
             );
-            let _ = write!(
-                s,
-                r#"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}"/>"#,
-                bx + nx * cap, by + ny * cap, bx - nx * cap, by - ny * cap
-            );
+
+            let pa = (ax + ux * panel_inset, ay + uy * panel_inset);
+            let pb = (bx - ux * panel_inset, by - uy * panel_inset);
+            let pc1 = (pa.0 + nx * panel_thick, pa.1 + ny * panel_thick);
+            let pc2 = (pb.0 + nx * panel_thick, pb.1 + ny * panel_thick);
+            let pc3 = (pb.0 - nx * panel_thick, pb.1 - ny * panel_thick);
+            let pc4 = (pa.0 - nx * panel_thick, pa.1 - ny * panel_thick);
             let _ = write!(
                 s,
                 r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="{white}" stroke="{black}" stroke-width="{stroke_w:.2}"/>"#,
-                c1.0, c1.1, c2.0, c2.1, c3.0, c3.1, c4.0, c4.1
+                pc1.0, pc1.1, pc2.0, pc2.1, pc3.0, pc3.1, pc4.0, pc4.1
             );
+
             if matches!(kind, DoorKind::LockedDoor) {
                 let _ = write!(
                     s,
