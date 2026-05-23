@@ -32,7 +32,7 @@ export type MapObject = {
   at: [number, number];
   facing?: "n" | "s" | "e" | "w" | "ns" | "ew";
 };
-export type Note = { at: [number, number]; text: string };
+export type Note = { id: string; at: [number, number]; text: string };
 
 export type View = "gm" | "player";
 
@@ -156,6 +156,21 @@ export function updateWall(map: Map, id: string, patch: Partial<Wall>): Map {
     ...l,
     walls: (l.walls ?? []).map((w) => (w.id === id ? { ...w, ...patch } : w)),
   }));
+}
+
+export function addNote(map: Map, note: Note): Map {
+  return { ...map, notes: [...(map.notes ?? []), note] };
+}
+
+export function removeNote(map: Map, id: string): Map {
+  return { ...map, notes: (map.notes ?? []).filter((n) => n.id !== id) };
+}
+
+export function updateNote(map: Map, id: string, patch: Partial<Note>): Map {
+  return {
+    ...map,
+    notes: (map.notes ?? []).map((n) => (n.id === id ? { ...n, ...patch } : n)),
+  };
 }
 
 /// Move an entity to a different layer. Creates the target layer if needed.

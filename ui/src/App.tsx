@@ -52,6 +52,7 @@ export function App() {
         case "r": setTool("rect"); break;
         case "w": setTool("wall"); break;
         case "t": setTool("path"); break;
+        case "n": setTool("note"); break;
         case "v": setTool("select"); break;
         case "d": setTool("door"); break;
         case "s": setTool("secret-door"); break;
@@ -213,6 +214,7 @@ export function App() {
             <ToolButton current={tool} value="rect" onClick={setTool} hint="R" label="Rectangle">▭</ToolButton>
             <ToolButton current={tool} value="wall" onClick={setTool} hint="W" label="Wall">━</ToolButton>
             <ToolButton current={tool} value="path" onClick={setTool} hint="T" label="Path">⌐</ToolButton>
+            <ToolButton current={tool} value="note" onClick={setTool} hint="N" label="Note">¶</ToolButton>
             <ToolButton current={tool} value="select" onClick={setTool} hint="V" label="Select">⬚</ToolButton>
             <div className="palette-divider" />
             {OBJECT_TOOLS.map((t) => (

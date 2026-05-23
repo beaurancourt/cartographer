@@ -5,10 +5,12 @@ import {
   LAYER_IDS,
   LAYER_LABEL,
   removeCarve,
+  removeNote,
   removeObject,
   removeWall,
   setEntityLayer,
   updateCarve,
+  updateNote,
   updateObject,
   updateWall,
   type Map,
@@ -48,6 +50,46 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
           <kbd>Space</kbd>+drag or middle-mouse pans, <kbd>⌘</kbd>+wheel zooms,{" "}
           <kbd>⌘Z</kbd>/<kbd>⇧⌘Z</kbd> undo/redo.
         </p>
+      </div>
+    );
+  }
+
+  // Notes live at map level, not inside a layer.
+  if (selection.kind === "note") {
+    const note = (map.notes ?? []).find((n) => n.id === selection.id);
+    if (!note) return null;
+    function setAt(axis: 0 | 1, n: number) {
+      const next: [number, number] = [note!.at[0], note!.at[1]];
+      next[axis] = n;
+      setMap(updateNote(map, note!.id, { at: next }));
+    }
+    return (
+      <div className="inspector">
+        <h3>Note</h3>
+        <Field label="id" value={note.id} />
+        <div className="coord-row">
+          <NumberField label="x" value={note.at[0]} onChange={(n) => setAt(0, n)} />
+          <NumberField label="y" value={note.at[1]} onChange={(n) => setAt(1, n)} />
+        </div>
+        <div className="field">
+          <label>text</label>
+          <input
+            type="text"
+            className="text-input"
+            value={note.text}
+            onChange={(e) => setMap(updateNote(map, note.id, { text: e.target.value }))}
+            autoFocus={note.text === ""}
+          />
+        </div>
+        <button
+          className="danger"
+          onClick={() => {
+            setMap(removeNote(map, note.id));
+            setSelection(null);
+          }}
+        >
+          Delete
+        </button>
       </div>
     );
   }

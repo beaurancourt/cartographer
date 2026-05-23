@@ -35,5 +35,5 @@ layers:
       - { id: c5, type: column,      at: [21, 5] }
       - { id: r1, type: rubble,      at: [22, 6] }
 notes:
-  - { at: [10, 3], text: "10ft pit" }
-  - { at: [19, 12], text: "tomb" }
+  - { id: n1, at: [10, 3], text: "10ft pit" }
+  - { id: n2, at: [19, 12], text: "tomb" }

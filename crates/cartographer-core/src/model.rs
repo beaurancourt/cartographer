@@ -253,6 +253,7 @@ impl Facing {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Note {
+    pub id: String,
     pub at: [C; 2],
     pub text: String,
 }

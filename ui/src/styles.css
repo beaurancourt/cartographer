@@ -323,7 +323,8 @@ body {
   gap: 0.2rem;
 }
 
-.inspector .field.num input {
+.inspector .field.num input,
+.inspector .text-input {
   background: #1c1d20;
   color: var(--fg);
   border: 1px solid #00000044;

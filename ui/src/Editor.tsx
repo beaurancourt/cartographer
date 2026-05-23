@@ -2,15 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { renderMapSvg } from "./ipc";
 import {
   addCarve,
+  addNote,
   addObject,
   addWall,
   isRectCarve,
   mapBbox,
   nextId,
   removeCarve,
+  removeNote,
   removeObject,
   removeWall,
   updateCarve,
+  updateNote,
   updateObject,
   updateWall,
   type Map,
@@ -23,7 +26,7 @@ import { OBJECT_TOOLS } from "./state";
 const COLS = 40;
 const ROWS = 28;
 
-export type Tool = "select" | "rect" | "wall" | "path" | ObjectTool;
+export type Tool = "select" | "rect" | "wall" | "path" | "note" | ObjectTool;
 
 const OBJECT_TOOL_IDS = new Set<string>(OBJECT_TOOLS.map((t) => t.id));
 
@@ -62,7 +65,7 @@ type ResizeDrag = {
   snapshot: Map;
 };
 
-type SelectionKind = "carve" | "object" | "wall";
+type SelectionKind = "carve" | "object" | "wall" | "note";
 export type Selection = { kind: SelectionKind; id: string };
 
 type Props = {
@@ -80,6 +83,10 @@ type Props = {
 };
 
 function entityPosition(map: Map, sel: Selection): MoveOriginal | null {
+  if (sel.kind === "note") {
+    const n = (map.notes ?? []).find((n) => n.id === sel.id);
+    return n ? { kind: "at", at: [n.at[0], n.at[1]] } : null;
+  }
   for (const layer of map.layers) {
     if (sel.kind === "carve") {
       const c = layer.carves.find((c) => c.id === sel.id);
@@ -89,7 +96,7 @@ function entityPosition(map: Map, sel: Selection): MoveOriginal | null {
     } else if (sel.kind === "object") {
       const o = (layer.objects ?? []).find((o) => o.id === sel.id);
       if (o) return { kind: "at", at: [o.at[0], o.at[1]] };
-    } else {
+    } else if (sel.kind === "wall") {
       const w = (layer.walls ?? []).find((w) => w.id === sel.id);
       if (w) {
         return {
@@ -120,6 +127,10 @@ function moveEntity(
   if (sel.kind === "object" && original.kind === "at") {
     const [x, y] = original.at;
     return updateObject(map, sel.id, { at: [x + dx, y + dy] });
+  }
+  if (sel.kind === "note" && original.kind === "at") {
+    const [x, y] = original.at;
+    return updateNote(map, sel.id, { at: [x + dx, y + dy] });
   }
   if (sel.kind === "wall" && original.kind === "segment") {
     const [[ax, ay], [bx, by]] = original.segment;
@@ -372,6 +383,12 @@ export function Editor({
   function hitTest(x: number, y: number, e: React.PointerEvent): Selection | null {
     const { px, py } = pxFromEvent(e);
     const tol = cell * 0.25;
+    // Notes are top-most overlay text — hit-test them before layers.
+    for (const n of [...(map.notes ?? [])].reverse()) {
+      if (n.at[0] <= x && x < n.at[0] + 1 && n.at[1] <= y && y < n.at[1] + 1) {
+        return { kind: "note", id: n.id };
+      }
+    }
     // Iterate all layers; later layers visually sit on top, so search them
     // first (reverse).
     const layers = [...map.layers].reverse();
@@ -478,6 +495,15 @@ export function Editor({
         setWallDraft(null);
         setSelection({ kind: "wall", id });
       }
+      return;
+    }
+
+    if (tool === "note") {
+      const { x, y } = cellFromEvent(e);
+      const id = nextId("n", map.notes ?? []);
+      const note = { id, at: [x, y] as [number, number], text: "" };
+      setMap(addNote(map, note));
+      setSelection({ kind: "note", id });
       return;
     }
 
@@ -639,8 +665,10 @@ export function Editor({
         setMap(removeCarve(map, selection.id));
       } else if (selection.kind === "object") {
         setMap(removeObject(map, selection.id));
-      } else {
+      } else if (selection.kind === "wall") {
         setMap(removeWall(map, selection.id));
+      } else {
+        setMap(removeNote(map, selection.id));
       }
       setSelection(null);
       e.preventDefault();
@@ -653,6 +681,13 @@ export function Editor({
     | { kind: "line"; x1: number; y1: number; x2: number; y2: number };
   const selectionDraw: SelDraw | null = (() => {
     if (!selection) return null;
+    if (selection.kind === "note") {
+      const n = (map.notes ?? []).find((n) => n.id === selection.id);
+      if (n) {
+        return { kind: "box", x: n.at[0] * cell, y: n.at[1] * cell, w: cell, h: cell };
+      }
+      return null;
+    }
     for (const layer of map.layers) {
       if (selection.kind === "carve") {
         const c = layer.carves.find((c) => c.id === selection.id);
@@ -665,7 +700,7 @@ export function Editor({
         if (o) {
           return { kind: "box", x: o.at[0] * cell, y: o.at[1] * cell, w: cell, h: cell };
         }
-      } else {
+      } else if (selection.kind === "wall") {
         const w = (layer.walls ?? []).find((w) => w.id === selection.id);
         if (w) {
           const [[ax, ay], [bx, by]] = w.segment;
