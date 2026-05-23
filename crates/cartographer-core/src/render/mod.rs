@@ -115,62 +115,71 @@ fn layers_bounds(map: &Map) -> Option<(f64, f64, f64, f64)> {
 
 fn render_layer(s: &mut String, layer: &Layer, cell_px: f64, theme: &Theme, opts: &RenderOptions) {
     let floor = geometry::layer_floor(layer);
-    if floor.0.is_empty() {
-        return;
-    }
-    let floor_d = multipolygon_to_path_d(&floor, cell_px);
+    let has_floor = !floor.0.is_empty();
+    let floor_d = if has_floor {
+        multipolygon_to_path_d(&floor, cell_px)
+    } else {
+        String::new()
+    };
 
-    // Floor fill — the contrast against the background IS the wall.
-    let _ = write!(
-        s,
-        r#"<path d="{floor_d}" fill="{}" fill-rule="evenodd"/>"#,
-        theme.floor
-    );
-
-    // Floor pattern overlay (hatching), clipped to floor shape.
-    if matches!(layer.style.floor, FloorStyle::Hatched) && theme.hatch.is_some() {
-        let clip_id = format!("clip-{}", layer.id);
+    if has_floor {
+        // Floor fill — the contrast against the background IS the wall.
         let _ = write!(
             s,
-            r#"<clipPath id="{clip_id}"><path d="{floor_d}" fill-rule="evenodd"/></clipPath>"#
+            r#"<path d="{floor_d}" fill="{}" fill-rule="evenodd"/>"#,
+            theme.floor
         );
-        write_hatch(s, &floor, cell_px, &clip_id, theme.hatch.unwrap());
-    }
 
-    // Grid overlay (clipped to floor).
-    if opts.show_grid {
-        let clip_id = format!("grid-clip-{}", layer.id);
-        let _ = write!(
-            s,
-            r#"<clipPath id="{clip_id}"><path d="{floor_d}" fill-rule="evenodd"/></clipPath>"#
-        );
-        write_grid(s, &floor, cell_px, &clip_id, theme.grid, theme.grid_opacity);
-    }
+        if matches!(layer.style.floor, FloorStyle::Hatched) && theme.hatch.is_some() {
+            let clip_id = format!("clip-{}", layer.id);
+            let _ = write!(
+                s,
+                r#"<clipPath id="{clip_id}"><path d="{floor_d}" fill-rule="evenodd"/></clipPath>"#
+            );
+            write_hatch(s, &floor, cell_px, &clip_id, theme.hatch.unwrap());
+        }
 
-    // Wall stroke — only if the theme explicitly draws an outline (otherwise
-    // the background/floor contrast itself reads as the wall).
-    if let Some(stroke_color) = theme.wall_stroke {
-        let _ = write!(
-            s,
-            r#"<path d="{floor_d}" fill="none" stroke="{stroke_color}" stroke-width="{:.2}" stroke-linejoin="miter" fill-rule="evenodd"/>"#,
-            cell_px * theme.wall_stroke_width
-        );
+        if opts.show_grid {
+            let clip_id = format!("grid-clip-{}", layer.id);
+            let _ = write!(
+                s,
+                r#"<clipPath id="{clip_id}"><path d="{floor_d}" fill-rule="evenodd"/></clipPath>"#
+            );
+            write_grid(s, &floor, cell_px, &clip_id, theme.grid, theme.grid_opacity);
+        }
+
+        if let Some(stroke_color) = theme.wall_stroke {
+            let _ = write!(
+                s,
+                r#"<path d="{floor_d}" fill="none" stroke="{stroke_color}" stroke-width="{:.2}" stroke-linejoin="miter" fill-rule="evenodd"/>"#,
+                cell_px * theme.wall_stroke_width
+            );
+        }
     }
 
     // Explicit walls — thick black lines drawn over the floor (clipped to it),
     // so e.g. two touching rooms can have a visible wall between them and a
-    // secret door can sit on it.
+    // secret door can sit on it. Walls without a floor in this layer aren't
+    // clipped — they draw freely.
     if !layer.walls.is_empty() {
-        let clip_id = format!("wall-clip-{}", layer.id);
-        let _ = write!(
-            s,
-            r#"<clipPath id="{clip_id}"><path d="{floor_d}" fill-rule="evenodd"/></clipPath>"#
-        );
-        let _ = write!(
-            s,
-            r#"<g clip-path="url(#{clip_id})" stroke="{}" stroke-width="{:.2}" stroke-linecap="square">"#,
-            theme.interior_wall, cell_px * 0.10
-        );
+        if has_floor {
+            let clip_id = format!("wall-clip-{}", layer.id);
+            let _ = write!(
+                s,
+                r#"<clipPath id="{clip_id}"><path d="{floor_d}" fill-rule="evenodd"/></clipPath>"#
+            );
+            let _ = write!(
+                s,
+                r#"<g clip-path="url(#{clip_id})" stroke="{}" stroke-width="{:.2}" stroke-linecap="square">"#,
+                theme.interior_wall, cell_px * 0.10
+            );
+        } else {
+            let _ = write!(
+                s,
+                r#"<g stroke="{}" stroke-width="{:.2}" stroke-linecap="square">"#,
+                theme.interior_wall, cell_px * 0.10
+            );
+        }
         for wall in &layer.walls {
             let [a, b] = wall.segment;
             let _ = write!(
