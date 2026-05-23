@@ -308,27 +308,30 @@ export function Editor({
     });
   }, [fitToken, map, cell]);
 
-  // Wheel zoom (Cmd/Ctrl + wheel) around cursor.
+  // Wheel: plain wheel/two-finger pans (trackpad native), Cmd/Ctrl+wheel
+  // zooms around the cursor.
   useEffect(() => {
     const wrap = wrapperRef.current;
     if (!wrap) return;
     function onWheel(e: WheelEvent) {
-      if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       const wrapRect = wrap!.getBoundingClientRect();
       const mx = e.clientX - wrapRect.left;
       const my = e.clientY - wrapRect.top;
-      const factor = Math.exp(-e.deltaY * 0.0015);
-      setZoom((zoomPrev) => {
-        const next = Math.max(0.25, Math.min(4, zoomPrev * factor));
-        setPan((panPrev) => {
-          // Keep the same SVG point under the cursor.
-          const svgX = (mx - panPrev.x) / zoomPrev;
-          const svgY = (my - panPrev.y) / zoomPrev;
-          return { x: mx - svgX * next, y: my - svgY * next };
+      if (e.ctrlKey || e.metaKey) {
+        const factor = Math.exp(-e.deltaY * 0.0035);
+        setZoom((zoomPrev) => {
+          const next = Math.max(0.25, Math.min(4, zoomPrev * factor));
+          setPan((panPrev) => {
+            const svgX = (mx - panPrev.x) / zoomPrev;
+            const svgY = (my - panPrev.y) / zoomPrev;
+            return { x: mx - svgX * next, y: my - svgY * next };
+          });
+          return next;
         });
-        return next;
-      });
+      } else {
+        setPan((p) => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }));
+      }
     }
     wrap.addEventListener("wheel", onWheel, { passive: false });
     return () => wrap.removeEventListener("wheel", onWheel);
