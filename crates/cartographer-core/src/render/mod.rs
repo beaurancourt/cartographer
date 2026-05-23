@@ -223,74 +223,74 @@ fn write_door(s: &mut String, door: &Door, cell_px: f64, view: View) {
     let mx = (ax + bx) / 2.0;
     let my = (ay + by) / 2.0;
 
-    let kind = if view == View::Player && door.kind == DoorKind::LockedDoor {
+    // In player view, locked- and secret-doors render as plain doors —
+    // the lock dot and the S marker are both GM-only information.
+    let show_kind = if view == View::Player {
         DoorKind::Door
     } else {
         door.kind
     };
 
-    match kind {
-        DoorKind::Door | DoorKind::LockedDoor => {
-            // Thin white panel with a black outline, plus a short black
-            // stub line at each end of the segment — the stubs extend
-            // along the segment direction from each anchor to the panel's
-            // end, centered perpendicular to the panel.
-            let panel_thick = cell_px * 0.11;
-            let panel_inset = (len * 0.10).min(cell_px * 0.18);
-            let stroke_w = cell_px * 0.05;
+    // Base render: thin white panel with black outline + a black stub
+    // line at each end of the segment (anchor → panel-end, centered
+    // perpendicular). Same shape for every door kind.
+    let panel_thick = cell_px * 0.11;
+    let panel_inset = (len * 0.10).min(cell_px * 0.18);
+    let stroke_w = cell_px * 0.05;
 
-            // Stub lines (anchor → panel end, on both ends).
-            let pa = (ax + ux * panel_inset, ay + uy * panel_inset);
-            let pb = (bx - ux * panel_inset, by - uy * panel_inset);
+    let pa = (ax + ux * panel_inset, ay + uy * panel_inset);
+    let pb = (bx - ux * panel_inset, by - uy * panel_inset);
+
+    let _ = write!(
+        s,
+        r#"<line x1="{ax:.2}" y1="{ay:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}" stroke-linecap="square"/>"#,
+        pa.0, pa.1
+    );
+    let _ = write!(
+        s,
+        r#"<line x1="{bx:.2}" y1="{by:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}" stroke-linecap="square"/>"#,
+        pb.0, pb.1
+    );
+
+    let pc1 = (pa.0 + nx * panel_thick, pa.1 + ny * panel_thick);
+    let pc2 = (pb.0 + nx * panel_thick, pb.1 + ny * panel_thick);
+    let pc3 = (pb.0 - nx * panel_thick, pb.1 - ny * panel_thick);
+    let pc4 = (pa.0 - nx * panel_thick, pa.1 - ny * panel_thick);
+    let _ = write!(
+        s,
+        r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="{white}" stroke="{black}" stroke-width="{stroke_w:.2}"/>"#,
+        pc1.0, pc1.1, pc2.0, pc2.1, pc3.0, pc3.1, pc4.0, pc4.1
+    );
+
+    // Kind-specific overlay (only in GM view).
+    match show_kind {
+        DoorKind::Door => {}
+        DoorKind::LockedDoor => {
             let _ = write!(
                 s,
-                r#"<line x1="{ax:.2}" y1="{ay:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}" stroke-linecap="square"/>"#,
-                pa.0, pa.1
+                r#"<circle cx="{mx:.2}" cy="{my:.2}" r="{:.2}" fill="{black}"/>"#,
+                cell_px * 0.07
             );
-            let _ = write!(
-                s,
-                r#"<line x1="{bx:.2}" y1="{by:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}" stroke-linecap="square"/>"#,
-                pb.0, pb.1
-            );
-
-            // White panel with black outline.
-            let pc1 = (pa.0 + nx * panel_thick, pa.1 + ny * panel_thick);
-            let pc2 = (pb.0 + nx * panel_thick, pb.1 + ny * panel_thick);
-            let pc3 = (pb.0 - nx * panel_thick, pb.1 - ny * panel_thick);
-            let pc4 = (pa.0 - nx * panel_thick, pa.1 - ny * panel_thick);
-            let _ = write!(
-                s,
-                r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="{white}" stroke="{black}" stroke-width="{stroke_w:.2}"/>"#,
-                pc1.0, pc1.1, pc2.0, pc2.1, pc3.0, pc3.1, pc4.0, pc4.1
-            );
-
-            if matches!(kind, DoorKind::LockedDoor) {
-                let _ = write!(
-                    s,
-                    r#"<circle cx="{mx:.2}" cy="{my:.2}" r="{:.2}" fill="{black}"/>"#,
-                    cell_px * 0.07
-                );
-            }
         }
         DoorKind::SecretDoor => {
+            // S inscribed in the panel. Rotate so the letter stays upright
+            // for vertical doors too (otherwise the panel rotation would
+            // put it on its side).
+            let angle_deg = uy.atan2(ux).to_degrees();
+            // Rotate text so it reads along the segment direction; for
+            // segments pointing up/down we want the letter still upright,
+            // so flip 180° when the segment points "up" (uy < 0) or "left"
+            // (uy == 0 && ux < 0).
+            let final_angle = if angle_deg.abs() > 90.0 {
+                angle_deg + 180.0
+            } else {
+                angle_deg
+            };
             let _ = write!(
                 s,
-                r#"<line x1="{ax:.2}" y1="{ay:.2}" x2="{bx:.2}" y2="{by:.2}" stroke="{black}" stroke-width="{:.2}" stroke-linecap="square"/>"#,
-                cell_px * 0.10
-            );
-            let sz = cell_px * 0.36;
-            let _ = write!(
-                s,
-                r#"<rect x="{:.2}" y="{:.2}" width="{sz:.2}" height="{sz:.2}" fill="{white}" stroke="{black}" stroke-width="{:.2}"/>"#,
-                mx - sz / 2.0,
-                my - sz / 2.0,
-                cell_px * 0.05
-            );
-            let _ = write!(
-                s,
-                r#"<text x="{mx:.2}" y="{:.2}" text-anchor="middle" font-family="Georgia, serif" font-size="{:.2}" font-style="italic" font-weight="bold" fill="{black}">S</text>"#,
-                my + cell_px * 0.13,
-                cell_px * 0.36
+                r#"<text x="{mx:.2}" y="{:.2}" text-anchor="middle" font-family="Georgia, serif" font-size="{:.2}" font-style="italic" font-weight="bold" fill="{black}" transform="rotate({final_angle:.1} {mx:.2} {my:.2})">S</text>"#,
+                my + cell_px * 0.07,
+                cell_px * 0.20
             );
         }
     }
