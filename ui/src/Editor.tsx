@@ -49,6 +49,17 @@ type MoveDrag = {
   snapshot: Map;
 };
 
+type HandleDir =
+  | "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w"
+  | "wall-start" | "wall-end";
+
+type ResizeDrag = {
+  selection: Selection;
+  handle: HandleDir;
+  original: MoveOriginal;
+  snapshot: Map;
+};
+
 type SelectionKind = "carve" | "object" | "wall";
 export type Selection = { kind: SelectionKind; id: string };
 
@@ -120,6 +131,58 @@ function moveEntity(
   return map;
 }
 
+function resizeEntity(
+  map: Map,
+  resize: ResizeDrag,
+  cursorX: number,
+  cursorY: number,
+): Map {
+  const { selection: sel, handle, original } = resize;
+
+  if (sel.kind === "carve" && original.kind === "rect") {
+    const [ox, oy, ow, oh] = original.rect;
+    // Anchor points (opposite of the dragged handle) stay fixed.
+    let left = ox;
+    let top = oy;
+    let right = ox + ow;
+    let bottom = oy + oh;
+    if (handle.includes("w")) left = cursorX;
+    if (handle.includes("e")) right = cursorX;
+    if (handle.startsWith("n")) top = cursorY;
+    if (handle.startsWith("s")) bottom = cursorY;
+    // Clamp: avoid zero/negative dimensions by swapping when crossed.
+    if (right < left) [left, right] = [right, left];
+    if (bottom < top) [top, bottom] = [bottom, top];
+    const w = right - left;
+    const h = bottom - top;
+    if (w <= 0 || h <= 0) return map;
+    return updateCarve(map, sel.id, { rect: [left, top, w, h] });
+  }
+
+  if (sel.kind === "wall" && original.kind === "segment") {
+    const [[ax, ay], [bx, by]] = original.segment;
+    if (handle === "wall-start") {
+      return updateWall(map, sel.id, { segment: [[cursorX, cursorY], [bx, by]] });
+    }
+    if (handle === "wall-end") {
+      return updateWall(map, sel.id, { segment: [[ax, ay], [cursorX, cursorY]] });
+    }
+  }
+
+  return map;
+}
+
+const CARVE_HANDLES: { dir: HandleDir; fx: number; fy: number; cursor: string }[] = [
+  { dir: "nw", fx: 0,   fy: 0,   cursor: "nwse-resize" },
+  { dir: "n",  fx: 0.5, fy: 0,   cursor: "ns-resize"   },
+  { dir: "ne", fx: 1,   fy: 0,   cursor: "nesw-resize" },
+  { dir: "e",  fx: 1,   fy: 0.5, cursor: "ew-resize"   },
+  { dir: "se", fx: 1,   fy: 1,   cursor: "nwse-resize" },
+  { dir: "s",  fx: 0.5, fy: 1,   cursor: "ns-resize"   },
+  { dir: "sw", fx: 0,   fy: 1,   cursor: "nesw-resize" },
+  { dir: "w",  fx: 0,   fy: 0.5, cursor: "ew-resize"   },
+];
+
 function pointToSegmentDist(
   px: number, py: number,
   ax: number, ay: number, bx: number, by: number,
@@ -155,6 +218,7 @@ export function Editor({
   const [drag, setDrag] = useState<Drag | null>(null);
   const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
   const [moveDrag, setMoveDrag] = useState<MoveDrag | null>(null);
+  const [resizeDrag, setResizeDrag] = useState<ResizeDrag | null>(null);
 
   // Pan/zoom transform.
   const [zoom, setZoom] = useState(1);
@@ -351,6 +415,22 @@ export function Editor({
       return;
     }
 
+    // Resize-handle hit: target carries data-handle on the overlay rect.
+    const handleAttr = (e.target as Element).getAttribute?.("data-handle");
+    if (handleAttr && selection) {
+      const original = entityPosition(map, selection);
+      if (original) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setResizeDrag({
+          selection,
+          handle: handleAttr as HandleDir,
+          original,
+          snapshot: map,
+        });
+        return;
+      }
+    }
+
     const { x, y } = cellFromEvent(e);
 
     if (tool === "rect") {
@@ -420,6 +500,14 @@ export function Editor({
       });
       return;
     }
+    if (resizeDrag) {
+      const { px, py } = pxFromEvent(e);
+      const cx = Math.round(px / cell / step) * step;
+      const cy = Math.round(py / cell / step) * step;
+      const next = resizeEntity(map, resizeDrag, cx, cy);
+      if (next !== map) replaceMap(next);
+      return;
+    }
     if (moveDrag) {
       const { x, y } = cellFromEvent(e);
       const dx = x - moveDrag.startCell[0];
@@ -448,6 +536,12 @@ export function Editor({
     if (panDrag) {
       e.currentTarget.releasePointerCapture(e.pointerId);
       setPanDrag(null);
+      return;
+    }
+    if (resizeDrag) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      commitMap(resizeDrag.snapshot, map);
+      setResizeDrag(null);
       return;
     }
     if (moveDrag) {
@@ -572,6 +666,7 @@ export function Editor({
         setDrag(null);
         setPanDrag(null);
         setMoveDrag(null);
+        setResizeDrag(null);
       }}
     >
       <div
@@ -636,6 +731,55 @@ export function Editor({
             strokeOpacity={0.45}
             strokeLinecap="round"
           />
+        )}
+        {/* Resize handles. 1/zoom factor keeps them screen-constant size. */}
+        {tool === "select" && selectionDraw?.kind === "box" && (
+          <g pointerEvents="none">
+            {CARVE_HANDLES.map((h) => {
+              const hx = selectionDraw.x + selectionDraw.w * h.fx;
+              const hy = selectionDraw.y + selectionDraw.h * h.fy;
+              const r = 6 / zoom;
+              return (
+                <rect
+                  key={h.dir}
+                  data-handle={h.dir}
+                  x={hx - r}
+                  y={hy - r}
+                  width={r * 2}
+                  height={r * 2}
+                  fill="#c9a86a"
+                  stroke="#1c1d20"
+                  strokeWidth={1 / zoom}
+                  pointerEvents="auto"
+                  style={{ cursor: h.cursor }}
+                />
+              );
+            })}
+          </g>
+        )}
+        {tool === "select" && selectionDraw?.kind === "line" && (
+          <g pointerEvents="none">
+            {[
+              { dir: "wall-start" as const, cx: selectionDraw.x1, cy: selectionDraw.y1 },
+              { dir: "wall-end" as const,   cx: selectionDraw.x2, cy: selectionDraw.y2 },
+            ].map((h) => {
+              const r = 7 / zoom;
+              return (
+                <circle
+                  key={h.dir}
+                  data-handle={h.dir}
+                  cx={h.cx}
+                  cy={h.cy}
+                  r={r}
+                  fill="#c9a86a"
+                  stroke="#1c1d20"
+                  strokeWidth={1 / zoom}
+                  pointerEvents="auto"
+                  style={{ cursor: "move" }}
+                />
+              );
+            })}
+          </g>
         )}
         {wallPreview && (
           <>
