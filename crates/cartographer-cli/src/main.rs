@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use cartographer_core::model::View;
 use cartographer_core::{ImageFormat, RenderOptions, load_yaml, render_image, render_svg};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -77,7 +78,7 @@ fn render(
     }
     let opts = RenderOptions {
         show_grid: !no_grid,
-        show_gm: !player,
+        view: if player { View::Player } else { View::Gm },
         ..Default::default()
     };
     let svg = render_svg(&map, &opts);

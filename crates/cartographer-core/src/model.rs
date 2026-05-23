@@ -84,13 +84,42 @@ pub struct Layer {
     pub walls: Vec<Wall>,
     #[serde(default)]
     pub objects: Vec<MapObject>,
-    /// If true, this layer's contents are rendered only in GM view; player
-    /// view skips it entirely (secret doors, trap notes, monster placements).
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub gm_only: bool,
+    /// Who sees this layer.
+    ///   `shared` (default) — visible in both GM and Player views.
+    ///   `player` — visible to players (and to the GM in the editor).
+    ///   `gm`     — visible only in GM view (secret-door markers, trap
+    ///              notes, monster placements).
+    #[serde(default)]
+    pub audience: Audience,
 }
 
-fn is_false(b: &bool) -> bool { !*b }
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum Audience {
+    #[default]
+    Shared,
+    Player,
+    Gm,
+}
+
+/// Two render modes. `Gm` shows every layer; `Player` skips `Audience::Gm`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum View {
+    Gm,
+    Player,
+}
+
+impl Audience {
+    pub fn visible_in(self, view: View) -> bool {
+        match (view, self) {
+            (_, Audience::Shared) => true,
+            (View::Gm, _) => true,
+            (View::Player, Audience::Player) => true,
+            (View::Player, Audience::Gm) => false,
+        }
+    }
+}
 
 /// An axis-aligned wall segment, drawn as a thick black line on top of the
 /// floor. Use to mark a wall where two carves touch (or anywhere inside a

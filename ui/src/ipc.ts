@@ -21,8 +21,8 @@ export type RenderArgs = {
   showGrid?: boolean;
   viewbox?: [number, number, number, number];
   transparentBackground?: boolean;
-  /// Include layers marked gm_only. Default true (GM view).
-  showGm?: boolean;
+  /// "gm" or "player".
+  view?: "gm" | "player";
 };
 
 export async function renderMapSvg(map: Map, args: RenderArgs = {}): Promise<string> {
@@ -32,7 +32,7 @@ export async function renderMapSvg(map: Map, args: RenderArgs = {}): Promise<str
 export async function exportImage(
   map: Map,
   path: string,
-  args: { showGm?: boolean } = {},
+  args: { view?: "gm" | "player" } = {},
 ): Promise<void> {
   await invoke("export_image", { map, path, args });
 }

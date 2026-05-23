@@ -1,4 +1,4 @@
-use cartographer_core::model::{Background, BackgroundStyle, Grid, Layer, LayerStyle};
+use cartographer_core::model::{Audience, Background, BackgroundStyle, Grid, Layer, LayerStyle, View};
 use cartographer_core::{ImageFormat, Map, RenderOptions, load_yaml, render_image, render_svg, validate};
 use std::path::PathBuf;
 
@@ -39,8 +39,8 @@ struct RenderArgs {
     /// viewbox to its canvas dimensions.
     viewbox: Option<[f64; 4]>,
     transparent_background: Option<bool>,
-    /// Show layers tagged `gm_only`. Default true (GM view).
-    show_gm: Option<bool>,
+    /// "gm" or "player" — controls layer filtering and locked-door rendering.
+    view: Option<View>,
 }
 
 #[tauri::command]
@@ -50,7 +50,7 @@ fn render_map_svg(map: Map, args: Option<RenderArgs>) -> Result<String, CmdError
         show_grid: args.show_grid.unwrap_or(true),
         viewbox: args.viewbox,
         transparent_background: args.transparent_background.unwrap_or(false),
-        show_gm: args.show_gm.unwrap_or(true),
+        view: args.view.unwrap_or(View::Gm),
         ..Default::default()
     };
     Ok(render_svg(&map, &opts))
@@ -58,27 +58,30 @@ fn render_map_svg(map: Map, args: Option<RenderArgs>) -> Result<String, CmdError
 
 #[tauri::command]
 fn new_map() -> Map {
+    fn layer(id: &str, audience: Audience) -> Layer {
+        Layer {
+            id: id.into(),
+            style: LayerStyle::default(),
+            carves: vec![],
+            walls: vec![],
+            objects: vec![],
+            audience,
+        }
+    }
     Map {
         version: 1,
         grid: Grid::default(),
         background: Background { style: BackgroundStyle::Ink },
+        // Standard four-layer setup. Editor placements default to:
+        //   terrain  — rooms (rect carves) and walls
+        //   object   — visible objects (doors, stairs, altars, columns, …)
+        //   player   — secret-doors and other player-side-only annotations
+        //   gm       — pit traps, monsters, GM-only notes
         layers: vec![
-            Layer {
-                id: "main".into(),
-                style: LayerStyle::default(),
-                carves: vec![],
-                walls: vec![],
-                objects: vec![],
-                gm_only: false,
-            },
-            Layer {
-                id: "secrets".into(),
-                style: LayerStyle::default(),
-                carves: vec![],
-                walls: vec![],
-                objects: vec![],
-                gm_only: true,
-            },
+            layer("terrain", Audience::Shared),
+            layer("object", Audience::Shared),
+            layer("player", Audience::Player),
+            layer("gm", Audience::Gm),
         ],
         notes: vec![],
     }
@@ -95,8 +98,7 @@ fn save_map(map: Map, path: String) -> Result<(), CmdError> {
 #[derive(serde::Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct ExportArgs {
-    /// Include layers marked `gm_only`. Default true (GM view).
-    show_gm: Option<bool>,
+    view: Option<View>,
 }
 
 #[tauri::command]
@@ -105,7 +107,7 @@ fn export_image(map: Map, path: String, args: Option<ExportArgs>) -> Result<(), 
     let p = PathBuf::from(&path);
     let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_ascii_lowercase();
     let opts = RenderOptions {
-        show_gm: args.show_gm.unwrap_or(true),
+        view: args.view.unwrap_or(View::Gm),
         ..Default::default()
     };
     let svg = render_svg(&map, &opts);

@@ -150,7 +150,7 @@ mod tests {
             carves,
             walls: vec![],
             objects,
-            gm_only: false,
+            audience: Default::default(),
         }
     }
 

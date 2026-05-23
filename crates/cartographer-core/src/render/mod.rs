@@ -3,7 +3,7 @@
 pub mod raster;
 
 use crate::geometry;
-use crate::model::{BackgroundStyle, FloorStyle, Layer, Map, MapObject};
+use crate::model::{BackgroundStyle, FloorStyle, Layer, Map, MapObject, View};
 use crate::symbols;
 use geo::MultiPolygon;
 use std::fmt::Write as _;
@@ -21,8 +21,9 @@ pub struct RenderOptions {
     /// If true, skip the background fill rect — the host (editor) supplies
     /// its own backdrop and grid.
     pub transparent_background: bool,
-    /// If false, skip layers marked `gm_only`. Defaults to true (GM view).
-    pub show_gm: bool,
+    /// Which render mode to use. `Gm` shows every layer; `Player` filters
+    /// out gm-audience layers and swaps locked-doors for plain doors.
+    pub view: View,
 }
 
 impl Default for RenderOptions {
@@ -32,7 +33,7 @@ impl Default for RenderOptions {
             show_grid: true,
             viewbox: None,
             transparent_background: false,
-            show_gm: true,
+            view: View::Gm,
         }
     }
 }
@@ -73,7 +74,7 @@ pub fn render_svg(map: &Map, opts: &RenderOptions) -> String {
     }
 
     for layer in &map.layers {
-        if layer.gm_only && !opts.show_gm {
+        if !layer.audience.visible_in(opts.view) {
             continue;
         }
         render_layer(&mut s, layer, cell_px, &theme, opts);
@@ -183,12 +184,18 @@ fn render_layer(s: &mut String, layer: &Layer, cell_px: f64, theme: &Theme, opts
     }
 
     for obj in &layer.objects {
-        write_object(s, obj, cell_px);
+        write_object(s, obj, cell_px, opts.view);
     }
 }
 
-fn write_object(s: &mut String, obj: &MapObject, cell_px: f64) {
-    let Some(content) = symbols::symbol_svg(&obj.kind) else { return };
+fn write_object(s: &mut String, obj: &MapObject, cell_px: f64, view: View) {
+    // Player view sees a locked door as a normal door — the lock is GM info.
+    let kind: &str = if view == View::Player && obj.kind == "locked-door" {
+        "door"
+    } else {
+        obj.kind.as_str()
+    };
+    let Some(content) = symbols::symbol_svg(kind) else { return };
     let cx = (obj.at[0].as_cells() + 0.5) * cell_px;
     let cy = (obj.at[1].as_cells() + 0.5) * cell_px;
     let rot = obj.facing.map(|f| f.rotation_deg()).unwrap_or(0.0);

@@ -2,10 +2,12 @@ import type { Selection } from "./Editor";
 import {
   findEntityLayer,
   isRectCarve,
+  LAYER_IDS,
+  LAYER_LABEL,
   removeCarve,
   removeObject,
   removeWall,
-  setEntityGmOnly,
+  setEntityLayer,
   updateCarve,
   updateObject,
   updateWall,
@@ -43,33 +45,41 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
           <kbd>D</kbd> door, <kbd>S</kbd> secret-door…
         </p>
         <p className="hint">
-          <kbd>Space</kbd>+drag or middle-mouse to pan, <kbd>⌘</kbd>+wheel to
-          zoom, <kbd>⌘Z</kbd>/<kbd>⇧⌘Z</kbd> undo/redo.
+          <kbd>Space</kbd>+drag or middle-mouse pans, <kbd>⌘</kbd>+wheel zooms,{" "}
+          <kbd>⌘Z</kbd>/<kbd>⇧⌘Z</kbd> undo/redo.
         </p>
       </div>
     );
   }
 
-  // The selected entity may live on any layer.
   const layerIdx = findEntityLayer(map, selection.id);
-  const layer = map.layers[layerIdx] ?? map.layers[0];
-  const gmOnly = Boolean(layer.gm_only);
+  const layer = map.layers[layerIdx];
+  const currentLayerId = layer?.id ?? "";
 
-  function gmOnlyToggle() {
+  function layerPicker() {
     return (
-      <label className="gm-only-toggle">
-        <input
-          type="checkbox"
-          checked={gmOnly}
-          onChange={(e) => setMap(setEntityGmOnly(map, selection!.id, e.target.checked))}
-        />
-        GM only (hide from players)
-      </label>
+      <div className="field">
+        <label>layer</label>
+        <select
+          value={currentLayerId}
+          onChange={(e) => setMap(setEntityLayer(map, selection!.id, e.target.value))}
+        >
+          {LAYER_IDS.map((id) => (
+            <option key={id} value={id}>
+              {LAYER_LABEL[id]}
+            </option>
+          ))}
+          {/* Custom layer IDs (loaded from YAML, not one of the four standard) */}
+          {currentLayerId && !LAYER_IDS.includes(currentLayerId as never) && (
+            <option value={currentLayerId}>{currentLayerId}</option>
+          )}
+        </select>
+      </div>
     );
   }
 
   if (selection.kind === "carve") {
-    const found = layer.carves.find((c) => c.id === selection.id);
+    const found = layer?.carves.find((c) => c.id === selection.id);
     if (!found || !isRectCarve(found)) return null;
     const carve = found;
     const [x, y, w, h] = carve.rect;
@@ -98,7 +108,7 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
             onChange={(n) => set(3, Math.max(1, n))}
           />
         </div>
-        {gmOnlyToggle()}
+        {layerPicker()}
         <button
           className="danger"
           onClick={() => {
@@ -113,7 +123,7 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
   }
 
   if (selection.kind === "wall") {
-    const wall = (layer.walls ?? []).find((w) => w.id === selection.id);
+    const wall = (layer?.walls ?? []).find((w) => w.id === selection.id);
     if (!wall) return null;
     const [[ax, ay], [bx, by]] = wall.segment;
     function setEnd(end: 0 | 1, axis: 0 | 1, n: number) {
@@ -136,7 +146,7 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
           <NumberField label="x2" value={bx} onChange={(n) => setEnd(1, 0, n)} />
           <NumberField label="y2" value={by} onChange={(n) => setEnd(1, 1, n)} />
         </div>
-        {gmOnlyToggle()}
+        {layerPicker()}
         <button
           className="danger"
           onClick={() => {
@@ -151,7 +161,7 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
   }
 
   // object
-  const obj = (layer.objects ?? []).find((o) => o.id === selection.id);
+  const obj = (layer?.objects ?? []).find((o) => o.id === selection.id);
   if (!obj) return null;
   const facing = obj.facing ?? "";
   function setAt(axis: 0 | 1, n: number) {
@@ -188,7 +198,7 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
           ))}
         </div>
       </div>
-      {gmOnlyToggle()}
+      {layerPicker()}
       <button
         className="danger"
         onClick={() => {

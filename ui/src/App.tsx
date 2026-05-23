@@ -26,7 +26,6 @@ export function App() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      // Don't intercept while typing in an input/textarea/contenteditable.
       const t = e.target as HTMLElement | null;
       if (
         t &&
@@ -132,7 +131,7 @@ export function App() {
     });
     if (!picked) return;
     try {
-      await exportImage(map, picked, { showGm: view === "gm" });
+      await exportImage(map, picked, { view });
     } catch (e) {
       setError(String(e));
     }
@@ -140,6 +139,7 @@ export function App() {
 
   return (
     <div className="app">
+      {/* Slim top bar: file ops, edit, view, style, snap. */}
       <div className="toolbar">
         <button onClick={handleNew}>New</button>
         <button onClick={handleOpen}>Open…</button>
@@ -150,37 +150,9 @@ export function App() {
           Export…
         </button>
         <div className="divider" />
-        <button onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">
-          ↶
-        </button>
-        <button onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">
-          ↷
-        </button>
-        <button onClick={fit} disabled={!map} title="Fit map to viewport">
-          Fit
-        </button>
-        <div className="divider" />
-        <ToolButton current={tool} value="rect" onClick={setTool} hint="R">
-          Rectangle
-        </ToolButton>
-        <ToolButton current={tool} value="wall" onClick={setTool} hint="W">
-          Wall
-        </ToolButton>
-        <ToolButton current={tool} value="select" onClick={setTool} hint="V">
-          Select
-        </ToolButton>
-        <div className="divider" />
-        {OBJECT_TOOLS.map((t) => (
-          <ToolButton
-            key={t.id}
-            current={tool}
-            value={t.id}
-            onClick={setTool}
-            hint={objectHint(t.id)}
-          >
-            {t.label}
-          </ToolButton>
-        ))}
+        <button onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">↶</button>
+        <button onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">↷</button>
+        <button onClick={fit} disabled={!map} title="Fit map to viewport">Fit</button>
         <div className="divider" />
         <div className="view-toggle" title="GM sees everything; Player hides gm-only layers">
           <button
@@ -196,8 +168,7 @@ export function App() {
             Player
           </button>
         </div>
-        <div className="divider" />
-        <label className="snap-picker" title="Snap precision (1/12 cell minimum)">
+        <label className="snap-picker" title="Snap precision (1/12 cell min)">
           Snap
           <select
             value={snap}
@@ -210,7 +181,6 @@ export function App() {
             ))}
           </select>
         </label>
-        <div className="divider" />
         {map && (
           <select
             className="style-picker"
@@ -218,7 +188,9 @@ export function App() {
             onChange={(e) =>
               setMap({
                 ...map,
-                background: { style: e.target.value as Map["background"]["style"] },
+                background: {
+                  style: e.target.value as Map["background"]["style"],
+                },
               })
             }
             title="Background style"
@@ -235,6 +207,25 @@ export function App() {
       {error && <pre className="error">{error}</pre>}
       {map ? (
         <div className="main">
+          {/* Left palette: tools */}
+          <div className="palette">
+            <ToolButton current={tool} value="rect" onClick={setTool} hint="R" label="Rectangle">▭</ToolButton>
+            <ToolButton current={tool} value="wall" onClick={setTool} hint="W" label="Wall">━</ToolButton>
+            <ToolButton current={tool} value="select" onClick={setTool} hint="V" label="Select">⬚</ToolButton>
+            <div className="palette-divider" />
+            {OBJECT_TOOLS.map((t) => (
+              <ToolButton
+                key={t.id}
+                current={tool}
+                value={t.id}
+                onClick={setTool}
+                hint={objectHint(t.id)}
+                label={t.label}
+              >
+                {objectGlyph(t.id)}
+              </ToolButton>
+            ))}
+          </div>
           <Editor
             map={map}
             setMap={setMap}
@@ -259,10 +250,11 @@ export function App() {
           <h2>Cartographer</h2>
           <p>
             Click <strong>New</strong> to start a fresh map, or{" "}
-            <strong>Open…</strong> to load a YAML file. Drag with the{" "}
-            <strong>Rectangle</strong> tool to carve rooms; click two points
-            with the <strong>Wall</strong> tool to draw a wall; click with an
-            object tool to place doors, traps, stairs, etc.
+            <strong>Open…</strong> to load a YAML file.
+          </p>
+          <p>
+            Pick a tool from the left palette, then drag/click on the canvas
+            to carve rooms, place objects, and draw walls.
           </p>
         </div>
       )}
@@ -276,21 +268,28 @@ function ToolButton({
   onClick,
   children,
   hint,
+  label,
 }: {
   current: Tool;
   value: Tool;
   onClick: (t: Tool) => void;
   children: React.ReactNode;
   hint?: string;
+  label?: string;
 }) {
+  const tooltip = label
+    ? `${label}${hint ? `  (${hint})` : ""}`
+    : hint
+      ? `${value} (${hint})`
+      : value;
   return (
     <button
-      className={current === value ? "tool active" : "tool"}
+      className={current === value ? "palette-btn active" : "palette-btn"}
       onClick={() => onClick(value)}
-      title={hint ? `${value} (${hint})` : value}
+      title={tooltip}
     >
-      {children}
-      {hint && <span className="hint-key">{hint}</span>}
+      <span className="palette-glyph">{children}</span>
+      {hint && <span className="palette-key">{hint}</span>}
     </button>
   );
 }
@@ -307,5 +306,20 @@ function objectHint(id: string): string | undefined {
     case "fountain": return "F";
     case "column": return "C";
     default: return undefined;
+  }
+}
+
+function objectGlyph(id: string): string {
+  switch (id) {
+    case "door": return "▮";
+    case "secret-door": return "S";
+    case "locked-door": return "🔒";
+    case "pit-trap": return "⊠";
+    case "stairs-up": return "↑";
+    case "stairs-down": return "↓";
+    case "altar": return "▤";
+    case "fountain": return "◎";
+    case "column": return "●";
+    default: return "·";
   }
 }

@@ -256,7 +256,7 @@ export function Editor({
       viewbox: [0, 0, W, H],
       transparentBackground: true,
       showGrid: true,
-      showGm: view === "gm",
+      view,
     })
       .then((s) => {
         if (!cancel) setSvg(s);

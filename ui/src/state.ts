@@ -9,23 +9,16 @@ export type Map = {
   notes?: Note[];
 };
 
+export type Audience = "shared" | "player" | "gm";
+
 export type Layer = {
   id: string;
   style?: object;
   carves: Carve[];
   walls?: Wall[];
   objects?: MapObject[];
-  gm_only?: boolean;
+  audience?: Audience;
 };
-
-export type View = "gm" | "player";
-
-/// Pick the layer index that new entities should be added to. Prefer the
-/// first non-gm-only layer; fall back to index 0 if all layers are gm-only.
-export function activeLayerIndex(map: Map): number {
-  const idx = map.layers.findIndex((l) => !l.gm_only);
-  return idx >= 0 ? idx : 0;
-}
 
 // Untagged enum (matches Rust serde): a Rect has `rect`, a Path has `path`.
 export type Carve = RectCarve | PathCarve;
@@ -41,6 +34,8 @@ export type MapObject = {
 };
 export type Note = { at: [number, number]; text: string };
 
+export type View = "gm" | "player";
+
 export function isRectCarve(c: Carve): c is RectCarve {
   return "rect" in c;
 }
@@ -55,8 +50,62 @@ export function nextId(prefix: string, existing: { id: string }[]): string {
   }
 }
 
+/// The four canonical layer ids, plus their default audience. Map files are
+/// expected to contain these layers; missing ones are created lazily.
+export const LAYER_IDS = ["terrain", "object", "player", "gm"] as const;
+export type LayerId = (typeof LAYER_IDS)[number];
+
+export const LAYER_DEFAULT_AUDIENCE: Record<LayerId, Audience> = {
+  terrain: "shared",
+  object: "shared",
+  player: "player",
+  gm: "gm",
+};
+
+export const LAYER_LABEL: Record<LayerId, string> = {
+  terrain: "Terrain",
+  object: "Object",
+  player: "Player",
+  gm: "GM",
+};
+
+/// Where new entities of each type land by default.
+export function defaultLayerForCarve(): LayerId {
+  return "terrain";
+}
+export function defaultLayerForWall(): LayerId {
+  return "terrain";
+}
+export function defaultLayerForObject(type: string): LayerId {
+  switch (type) {
+    case "secret-door":
+      return "player";
+    default:
+      return "object";
+  }
+}
+
+// ── mutators ────────────────────────────────────────────────────────────────
+
 export function addCarve(map: Map, carve: Carve): Map {
-  return addToActiveLayer(map, (l) => ({ ...l, carves: [...l.carves, carve] }));
+  return addToLayer(map, defaultLayerForCarve(), (l) => ({
+    ...l,
+    carves: [...l.carves, carve],
+  }));
+}
+
+export function addWall(map: Map, wall: Wall): Map {
+  return addToLayer(map, defaultLayerForWall(), (l) => ({
+    ...l,
+    walls: [...(l.walls ?? []), wall],
+  }));
+}
+
+export function addObject(map: Map, obj: MapObject): Map {
+  return addToLayer(map, defaultLayerForObject(obj.type), (l) => ({
+    ...l,
+    objects: [...(l.objects ?? []), obj],
+  }));
 }
 
 export function removeCarve(map: Map, id: string): Map {
@@ -66,17 +115,17 @@ export function removeCarve(map: Map, id: string): Map {
   }));
 }
 
-export function addObject(map: Map, obj: MapObject): Map {
-  return addToActiveLayer(map, (l) => ({
-    ...l,
-    objects: [...(l.objects ?? []), obj],
-  }));
-}
-
 export function removeObject(map: Map, id: string): Map {
   return updateAllLayers(map, (l) => ({
     ...l,
     objects: (l.objects ?? []).filter((o) => o.id !== id),
+  }));
+}
+
+export function removeWall(map: Map, id: string): Map {
+  return updateAllLayers(map, (l) => ({
+    ...l,
+    walls: (l.walls ?? []).filter((w) => w.id !== id),
   }));
 }
 
@@ -90,20 +139,6 @@ export function updateObject(
     objects: (l.objects ?? []).map((o) =>
       o.id === id ? { ...o, ...patch } : o,
     ),
-  }));
-}
-
-export function addWall(map: Map, wall: Wall): Map {
-  return addToActiveLayer(map, (l) => ({
-    ...l,
-    walls: [...(l.walls ?? []), wall],
-  }));
-}
-
-export function removeWall(map: Map, id: string): Map {
-  return updateAllLayers(map, (l) => ({
-    ...l,
-    walls: (l.walls ?? []).filter((w) => w.id !== id),
   }));
 }
 
@@ -123,11 +158,8 @@ export function updateWall(map: Map, id: string, patch: Partial<Wall>): Map {
   }));
 }
 
-/// Move an entity between the gm-only layer and the main layer. Creates the
-/// target layer if it doesn't exist.
-export function setEntityGmOnly(map: Map, id: string, gmOnly: boolean): Map {
-  // Snapshot the entity, then drop it from wherever it is, then drop it into
-  // the layer matching the desired gm_only flag.
+/// Move an entity to a different layer. Creates the target layer if needed.
+export function setEntityLayer(map: Map, id: string, targetLayerId: string): Map {
   let entity: { kind: "carve" | "object" | "wall"; payload: Carve | MapObject | Wall } | null = null;
   for (const layer of map.layers) {
     const c = layer.carves.find((c) => c.id === id);
@@ -139,7 +171,7 @@ export function setEntityGmOnly(map: Map, id: string, gmOnly: boolean): Map {
   }
   if (!entity) return map;
 
-  // Drop from all layers.
+  // Drop the entity from every layer.
   let next: Map = updateAllLayers(map, (l) => ({
     ...l,
     carves: l.carves.filter((c) => c.id !== id),
@@ -147,45 +179,34 @@ export function setEntityGmOnly(map: Map, id: string, gmOnly: boolean): Map {
     walls: (l.walls ?? []).filter((w) => w.id !== id),
   }));
 
-  // Ensure a target layer with the matching gm_only flag exists.
-  let targetIdx = next.layers.findIndex((l) => Boolean(l.gm_only) === gmOnly);
-  if (targetIdx < 0) {
-    next = {
-      ...next,
-      layers: [
-        ...next.layers,
-        {
-          id: gmOnly ? "secrets" : "main",
-          carves: [],
-          walls: [],
-          objects: [],
-          gm_only: gmOnly,
-        },
-      ],
-    };
-    targetIdx = next.layers.length - 1;
-  }
-
-  return {
-    ...next,
-    layers: next.layers.map((l, i) => {
-      if (i !== targetIdx) return l;
-      if (entity!.kind === "carve") {
-        return { ...l, carves: [...l.carves, entity!.payload as Carve] };
-      }
-      if (entity!.kind === "object") {
-        return { ...l, objects: [...(l.objects ?? []), entity!.payload as MapObject] };
-      }
-      return { ...l, walls: [...(l.walls ?? []), entity!.payload as Wall] };
-    }),
-  };
+  // Re-insert into the target layer (creating it if missing).
+  next = addToLayer(next, targetLayerId as LayerId, (l) => {
+    if (entity!.kind === "carve") {
+      return { ...l, carves: [...l.carves, entity!.payload as Carve] };
+    }
+    if (entity!.kind === "object") {
+      return { ...l, objects: [...(l.objects ?? []), entity!.payload as MapObject] };
+    }
+    return { ...l, walls: [...(l.walls ?? []), entity!.payload as Wall] };
+  });
+  return next;
 }
 
-function addToActiveLayer(map: Map, fn: (l: Layer) => Layer): Map {
-  const idx = activeLayerIndex(map);
+function addToLayer(map: Map, layerId: string, fn: (l: Layer) => Layer): Map {
+  let idx = map.layers.findIndex((l) => l.id === layerId);
+  let layers = map.layers;
+  if (idx < 0) {
+    // Lazily create the layer with its canonical audience.
+    const audience = (LAYER_DEFAULT_AUDIENCE as Record<string, Audience>)[layerId] ?? "shared";
+    layers = [
+      ...layers,
+      { id: layerId, carves: [], walls: [], objects: [], audience },
+    ];
+    idx = layers.length - 1;
+  }
   return {
     ...map,
-    layers: map.layers.map((l, i) => (i === idx ? fn(l) : l)),
+    layers: layers.map((l, i) => (i === idx ? fn(l) : l)),
   };
 }
 
@@ -193,9 +214,18 @@ function updateAllLayers(map: Map, fn: (l: Layer) => Layer): Map {
   return { ...map, layers: map.layers.map(fn) };
 }
 
-/// Bounding box of all map content in *cell* coordinates. Walks every
-/// layer regardless of gm_only — the editor wants a stable bbox that
-/// doesn't shift when the GM/Player view toggles.
+/// Find which layer an entity lives in. -1 if not found.
+export function findEntityLayer(map: Map, id: string): number {
+  for (let i = 0; i < map.layers.length; i++) {
+    const l = map.layers[i];
+    if (l.carves.some((c) => c.id === id)) return i;
+    if ((l.objects ?? []).some((o) => o.id === id)) return i;
+    if ((l.walls ?? []).some((w) => w.id === id)) return i;
+  }
+  return -1;
+}
+
+/// Bounding box of all map content in *cell* coordinates.
 export function mapBbox(map: Map): { x: number; y: number; w: number; h: number } | null {
   let minX = Infinity;
   let minY = Infinity;
@@ -232,20 +262,7 @@ export function mapBbox(map: Map): { x: number; y: number; w: number; h: number 
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
-/// Find which layer an entity lives in. -1 if not found.
-export function findEntityLayer(map: Map, id: string): number {
-  for (let i = 0; i < map.layers.length; i++) {
-    const l = map.layers[i];
-    if (l.carves.some((c) => c.id === id)) return i;
-    if ((l.objects ?? []).some((o) => o.id === id)) return i;
-    if ((l.walls ?? []).some((w) => w.id === id)) return i;
-  }
-  return -1;
-}
-
-/// Object kinds we expose as toolbar tools. Defaults pre-fill the placed
-/// MapObject — facing is `ew` for doors (slot bridges horizontal gap),
-/// `s` for stairs (going off-south), unset otherwise.
+/// Object kinds we expose as toolbar tools.
 export const OBJECT_TOOLS = [
   { id: "door", label: "Door", defaultFacing: "ew" as const },
   { id: "secret-door", label: "Secret door", defaultFacing: "ew" as const },
@@ -260,8 +277,6 @@ export const OBJECT_TOOLS = [
 
 export type ObjectTool = (typeof OBJECT_TOOLS)[number]["id"];
 
-/// Snap denominator. The actual snap step is `1 / SnapMode` cells. 12 is the
-/// finest representable position (matches the base-12 internal coord system).
 export type SnapMode = 1 | 2 | 3 | 4 | 6 | 12;
 
 export const SNAP_OPTIONS: { value: SnapMode; label: string }[] = [
