@@ -231,30 +231,29 @@ fn write_door(s: &mut String, door: &Door, cell_px: f64, view: View) {
 
     match kind {
         DoorKind::Door | DoorKind::LockedDoor => {
-            // Black wall band runs anchor-to-anchor. White panel sits inset
-            // along the segment, leaving wall stubs that "join" the door
-            // to each anchor. Thicknesses are fractions of a cell; the
-            // panel inset scales with segment length so a long door still
-            // gets short stubs and a short door gets proportional ones.
-            let wall_thick = cell_px * 0.18;   // half-thickness perpendicular
-            let panel_thick = cell_px * 0.10;  // half-thickness perpendicular
-            let panel_inset = (len * 0.18).min(cell_px * 0.3); // length-aware stubs
-            let stroke_w = cell_px * 0.04;
+            // Thin white panel with a black outline, plus a short black
+            // stub line at each end of the segment — the stubs extend
+            // along the segment direction from each anchor to the panel's
+            // end, centered perpendicular to the panel.
+            let panel_thick = cell_px * 0.11;
+            let panel_inset = (len * 0.10).min(cell_px * 0.18);
+            let stroke_w = cell_px * 0.05;
 
-            // Wall band: anchor-to-anchor, no extension past the endpoints.
-            let wc1 = (ax + nx * wall_thick, ay + ny * wall_thick);
-            let wc2 = (bx + nx * wall_thick, by + ny * wall_thick);
-            let wc3 = (bx - nx * wall_thick, by - ny * wall_thick);
-            let wc4 = (ax - nx * wall_thick, ay - ny * wall_thick);
-            let _ = write!(
-                s,
-                r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="{black}"/>"#,
-                wc1.0, wc1.1, wc2.0, wc2.1, wc3.0, wc3.1, wc4.0, wc4.1
-            );
-
-            // White panel inset along the segment.
+            // Stub lines (anchor → panel end, on both ends).
             let pa = (ax + ux * panel_inset, ay + uy * panel_inset);
             let pb = (bx - ux * panel_inset, by - uy * panel_inset);
+            let _ = write!(
+                s,
+                r#"<line x1="{ax:.2}" y1="{ay:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}" stroke-linecap="square"/>"#,
+                pa.0, pa.1
+            );
+            let _ = write!(
+                s,
+                r#"<line x1="{bx:.2}" y1="{by:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}" stroke-linecap="square"/>"#,
+                pb.0, pb.1
+            );
+
+            // White panel with black outline.
             let pc1 = (pa.0 + nx * panel_thick, pa.1 + ny * panel_thick);
             let pc2 = (pb.0 + nx * panel_thick, pb.1 + ny * panel_thick);
             let pc3 = (pb.0 - nx * panel_thick, pb.1 - ny * panel_thick);
