@@ -201,6 +201,117 @@ body {
   height: 100%;
 }
 
+.canvas-stack {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+  position: relative;
+}
+
+.status-bar {
+  display: flex;
+  gap: 1rem;
+  padding: 0.25rem 0.75rem;
+  background: var(--panel);
+  border-top: 1px solid #00000044;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-family: ui-monospace, "SF Mono", monospace;
+}
+
+.status-bar .cursor-coords {
+  min-width: 6ch;
+}
+
+.side {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+  border-left: 1px solid #00000044;
+}
+
+.layer-panel {
+  background: var(--panel);
+  border-top: 1px solid #00000044;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.layer-panel h4 {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.layer-row {
+  display: grid;
+  grid-template-columns: 18px 1fr 22px 28px;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0.25rem 0.35rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.layer-row:hover {
+  background: #2e3035;
+}
+
+.layer-row.hidden {
+  opacity: 0.45;
+}
+
+.layer-row .eye {
+  text-align: center;
+}
+
+.layer-row .name {
+  text-transform: capitalize;
+}
+
+.layer-row .badge {
+  text-align: center;
+  font-size: 0.65rem;
+  padding: 0 0.35rem;
+  border-radius: 3px;
+  font-weight: bold;
+  line-height: 1.4;
+}
+
+.layer-row .badge.shared {
+  background: #35424a;
+  color: #cfe5ee;
+}
+.layer-row .badge.player {
+  background: #3e4830;
+  color: #d5e5b5;
+}
+.layer-row .badge.gm {
+  background: #4a2f33;
+  color: #f0c8c8;
+}
+
+.layer-row .count {
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.side .inspector {
+  border-left: 0;
+}
+
 .palette {
   background: var(--panel);
   border-right: 1px solid #00000044;

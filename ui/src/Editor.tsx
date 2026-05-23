@@ -80,6 +80,12 @@ type Props = {
   setSelection: (s: Selection | null) => void;
   /// Bumping this counter triggers a fit-to-view inside the editor.
   fitToken: number;
+  /// Layer ids the user has temporarily hidden in the editor. They're still
+  /// in the map data and will appear in exports; only the live preview and
+  /// the hit-test ignore them.
+  hiddenLayers: Set<string>;
+  /// Reports cursor cell coords to the status bar.
+  onCursorChange: (c: [number, number] | null) => void;
 };
 
 function entityPosition(map: Map, sel: Selection): MoveOriginal | null {
@@ -220,6 +226,8 @@ export function Editor({
   selection,
   setSelection,
   fitToken,
+  hiddenLayers,
+  onCursorChange,
 }: Props) {
   const step = 1 / snap;
   const cell = map.grid.cell_size;
@@ -331,7 +339,13 @@ export function Editor({
   // editor's own grid shows through the void.
   useEffect(() => {
     let cancel = false;
-    renderMapSvg(map, {
+    // Hide UI-hidden layers from the live preview by filtering the map
+    // before sending it to Rust. Export uses the full map.
+    const visibleMap =
+      hiddenLayers.size === 0
+        ? map
+        : { ...map, layers: map.layers.filter((l) => !hiddenLayers.has(l.id)) };
+    renderMapSvg(visibleMap, {
       viewbox: [0, 0, W, H],
       transparentBackground: true,
       showGrid: true,
@@ -346,7 +360,7 @@ export function Editor({
     return () => {
       cancel = true;
     };
-  }, [map, W, H, view]);
+  }, [map, W, H, view, hiddenLayers]);
 
   function pxFromEvent(e: React.PointerEvent): { px: number; py: number } {
     // Use the inner content's screen rect — it reflects the pan/zoom
@@ -389,9 +403,11 @@ export function Editor({
         return { kind: "note", id: n.id };
       }
     }
-    // Iterate all layers; later layers visually sit on top, so search them
-    // first (reverse).
-    const layers = [...map.layers].reverse();
+    // Iterate all visible layers; later layers visually sit on top, so
+    // search them first (reverse).
+    const layers = [...map.layers]
+      .filter((l) => !hiddenLayers.has(l.id))
+      .reverse();
     for (const layer of layers) {
       for (const w of [...(layer.walls ?? [])].reverse()) {
         const [[ax, ay], [bx, by]] = w.segment;
@@ -545,6 +561,9 @@ export function Editor({
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    // Always report cursor coords for the status bar.
+    const cellCoord = cellFromEvent(e);
+    onCursorChange([cellCoord.x, cellCoord.y]);
     if (panDrag) {
       setPan({
         x: panDrag.baseX + (e.clientX - panDrag.clientX),
@@ -794,6 +813,7 @@ export function Editor({
         setMoveDrag(null);
         setResizeDrag(null);
       }}
+      onPointerLeave={() => onCursorChange(null)}
     >
       <div
         ref={contentRef}

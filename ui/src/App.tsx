@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { Editor, type Selection, type Tool } from "./Editor";
 import { Inspector } from "./Inspector";
+import { LayerPanel } from "./LayerPanel";
 import { useMapHistory } from "./history";
 import { exportImage, loadMap, newMap, saveMap } from "./ipc";
 import {
@@ -22,6 +23,8 @@ export function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [fitToken, setFitToken] = useState(0);
   const fit = useCallback(() => setFitToken((t) => t + 1), []);
+  const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+  const [cursor, setCursor] = useState<[number, number] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -230,24 +233,42 @@ export function App() {
               </ToolButton>
             ))}
           </div>
-          <Editor
-            map={map}
-            setMap={setMap}
-            replaceMap={replaceMap}
-            commitMap={commitMap}
-            tool={tool}
-            snap={snap}
-            view={view}
-            selection={selection}
-            setSelection={setSelection}
-            fitToken={fitToken}
-          />
-          <Inspector
-            map={map}
-            setMap={setMap}
-            selection={selection}
-            setSelection={setSelection}
-          />
+          <div className="canvas-stack">
+            <Editor
+              map={map}
+              setMap={setMap}
+              replaceMap={replaceMap}
+              commitMap={commitMap}
+              tool={tool}
+              snap={snap}
+              view={view}
+              selection={selection}
+              setSelection={setSelection}
+              fitToken={fitToken}
+              hiddenLayers={hiddenLayers}
+              onCursorChange={setCursor}
+            />
+            <div className="status-bar">
+              <span className="tool-label">tool: {tool}</span>
+              <span className="cursor-coords">
+                {cursor ? `(${cursor[0]}, ${cursor[1]})` : "·"}
+              </span>
+              <span className="snap-label">snap: 1/{snap}</span>
+            </div>
+          </div>
+          <div className="side">
+            <Inspector
+              map={map}
+              setMap={setMap}
+              selection={selection}
+              setSelection={setSelection}
+            />
+            <LayerPanel
+              map={map}
+              hidden={hiddenLayers}
+              setHidden={setHiddenLayers}
+            />
+          </div>
         </div>
       ) : (
         <div className="empty">
