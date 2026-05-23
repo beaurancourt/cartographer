@@ -231,28 +231,28 @@ fn write_door(s: &mut String, door: &Door, cell_px: f64, view: View) {
 
     match kind {
         DoorKind::Door | DoorKind::LockedDoor => {
-            // Two stacked rectangles: a thicker black "wall" band that gives
-            // the door its embedded look, and a smaller white panel inside.
-            // The wall extends slightly past the segment endpoints; the panel
-            // is inset, leaving visible black wall stubs along the segment.
-            let wall_thick = cell_px * 0.30;
-            let wall_pad = cell_px * 0.05;
-            let panel_thick = cell_px * 0.13;
-            let panel_inset = cell_px * 0.18;
-            let stroke_w = cell_px * 0.05;
+            // Black wall band runs anchor-to-anchor. White panel sits inset
+            // along the segment, leaving wall stubs that "join" the door
+            // to each anchor. Thicknesses are fractions of a cell; the
+            // panel inset scales with segment length so a long door still
+            // gets short stubs and a short door gets proportional ones.
+            let wall_thick = cell_px * 0.18;   // half-thickness perpendicular
+            let panel_thick = cell_px * 0.10;  // half-thickness perpendicular
+            let panel_inset = (len * 0.18).min(cell_px * 0.3); // length-aware stubs
+            let stroke_w = cell_px * 0.04;
 
-            let wa = (ax - ux * wall_pad, ay - uy * wall_pad);
-            let wb = (bx + ux * wall_pad, by + uy * wall_pad);
-            let wc1 = (wa.0 + nx * wall_thick, wa.1 + ny * wall_thick);
-            let wc2 = (wb.0 + nx * wall_thick, wb.1 + ny * wall_thick);
-            let wc3 = (wb.0 - nx * wall_thick, wb.1 - ny * wall_thick);
-            let wc4 = (wa.0 - nx * wall_thick, wa.1 - ny * wall_thick);
+            // Wall band: anchor-to-anchor, no extension past the endpoints.
+            let wc1 = (ax + nx * wall_thick, ay + ny * wall_thick);
+            let wc2 = (bx + nx * wall_thick, by + ny * wall_thick);
+            let wc3 = (bx - nx * wall_thick, by - ny * wall_thick);
+            let wc4 = (ax - nx * wall_thick, ay - ny * wall_thick);
             let _ = write!(
                 s,
                 r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="{black}"/>"#,
                 wc1.0, wc1.1, wc2.0, wc2.1, wc3.0, wc3.1, wc4.0, wc4.1
             );
 
+            // White panel inset along the segment.
             let pa = (ax + ux * panel_inset, ay + uy * panel_inset);
             let pb = (bx - ux * panel_inset, by - uy * panel_inset);
             let pc1 = (pa.0 + nx * panel_thick, pa.1 + ny * panel_thick);
@@ -269,7 +269,7 @@ fn write_door(s: &mut String, door: &Door, cell_px: f64, view: View) {
                 let _ = write!(
                     s,
                     r#"<circle cx="{mx:.2}" cy="{my:.2}" r="{:.2}" fill="{black}"/>"#,
-                    cell_px * 0.08
+                    cell_px * 0.07
                 );
             }
         }
