@@ -2,36 +2,57 @@ import { useEffect, useRef, useState } from "react";
 import { renderMapSvg } from "./ipc";
 import {
   addCarve,
+  addDoor,
   addNote,
   addObject,
+  addStairs,
   addWall,
   isRectCarve,
   mapBbox,
   nextId,
   removeCarve,
+  removeDoor,
   removeNote,
   removeObject,
+  removeStairs,
   removeWall,
   updateCarve,
+  updateDoor,
   updateNote,
   updateObject,
+  updateStairs,
   updateWall,
+  type Door,
+  type DoorTool,
   type Map,
   type ObjectTool,
   type SnapMode,
   type View,
 } from "./state";
-import { OBJECT_TOOLS } from "./state";
+import { DOOR_TOOLS, OBJECT_TOOLS } from "./state";
 
 const COLS = 40;
 const ROWS = 28;
 
-export type Tool = "select" | "rect" | "wall" | "path" | "note" | ObjectTool;
+export type Tool =
+  | "select"
+  | "rect"
+  | "wall"
+  | "path"
+  | "note"
+  | "stairs"
+  | DoorTool
+  | ObjectTool;
 
 const OBJECT_TOOL_IDS = new Set<string>(OBJECT_TOOLS.map((t) => t.id));
+const DOOR_TOOL_IDS = new Set<string>(DOOR_TOOLS.map((t) => t.id));
 
 function isObjectTool(t: Tool): t is ObjectTool {
   return OBJECT_TOOL_IDS.has(t);
+}
+
+function isDoorTool(t: Tool): t is DoorTool {
+  return DOOR_TOOL_IDS.has(t);
 }
 
 type Drag = { x0: number; y0: number; x1: number; y1: number };
@@ -40,10 +61,19 @@ type WallDraft = { start: [number, number]; cursor: [number, number] };
 
 type PathDraft = { points: [number, number][]; cursor: [number, number] };
 
+type DoorDraft = {
+  tool: DoorTool;
+  start: [number, number];
+  cursor: [number, number];
+};
+
+type StairsDraft = { points: [number, number][]; cursor: [number, number] };
+
 type MoveOriginal =
   | { kind: "rect"; rect: [number, number, number, number] }
   | { kind: "at"; at: [number, number] }
-  | { kind: "segment"; segment: [[number, number], [number, number]] };
+  | { kind: "segment"; segment: [[number, number], [number, number]] }
+  | { kind: "anchors"; anchors: [[number, number], [number, number], [number, number]] };
 
 type MoveDrag = {
   selection: Selection;
@@ -56,7 +86,9 @@ type MoveDrag = {
 
 type HandleDir =
   | "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w"
-  | "wall-start" | "wall-end";
+  | "wall-start" | "wall-end"
+  | "door-start" | "door-end"
+  | "stairs-0" | "stairs-1" | "stairs-2";
 
 type ResizeDrag = {
   selection: Selection;
@@ -65,7 +97,7 @@ type ResizeDrag = {
   snapshot: Map;
 };
 
-type SelectionKind = "carve" | "object" | "wall" | "note";
+type SelectionKind = "carve" | "object" | "wall" | "note" | "door" | "stairs";
 export type Selection = { kind: SelectionKind; id: string };
 
 type Props = {
@@ -113,6 +145,29 @@ function entityPosition(map: Map, sel: Selection): MoveOriginal | null {
           ],
         };
       }
+    } else if (sel.kind === "door") {
+      const d = (layer.doors ?? []).find((d) => d.id === sel.id);
+      if (d) {
+        return {
+          kind: "segment",
+          segment: [
+            [d.segment[0][0], d.segment[0][1]],
+            [d.segment[1][0], d.segment[1][1]],
+          ],
+        };
+      }
+    } else if (sel.kind === "stairs") {
+      const st = (layer.stairs ?? []).find((s) => s.id === sel.id);
+      if (st) {
+        return {
+          kind: "anchors",
+          anchors: [
+            [st.anchors[0][0], st.anchors[0][1]],
+            [st.anchors[1][0], st.anchors[1][1]],
+            [st.anchors[2][0], st.anchors[2][1]],
+          ],
+        };
+      }
     }
   }
   return null;
@@ -141,11 +196,20 @@ function moveEntity(
   if (sel.kind === "wall" && original.kind === "segment") {
     const [[ax, ay], [bx, by]] = original.segment;
     return updateWall(map, sel.id, {
-      segment: [
-        [ax + dx, ay + dy],
-        [bx + dx, by + dy],
-      ],
+      segment: [[ax + dx, ay + dy], [bx + dx, by + dy]],
     });
+  }
+  if (sel.kind === "door" && original.kind === "segment") {
+    const [[ax, ay], [bx, by]] = original.segment;
+    return updateDoor(map, sel.id, {
+      segment: [[ax + dx, ay + dy], [bx + dx, by + dy]],
+    });
+  }
+  if (sel.kind === "stairs" && original.kind === "anchors") {
+    const moved = original.anchors.map(([x, y]) => [x + dx, y + dy]) as [
+      [number, number], [number, number], [number, number],
+    ];
+    return updateStairs(map, sel.id, { anchors: moved });
   }
   return map;
 }
@@ -185,6 +249,32 @@ function resizeEntity(
     }
     if (handle === "wall-end") {
       return updateWall(map, sel.id, { segment: [[ax, ay], [cursorX, cursorY]] });
+    }
+  }
+
+  if (sel.kind === "door" && original.kind === "segment") {
+    const [[ax, ay], [bx, by]] = original.segment;
+    if (handle === "door-start") {
+      return updateDoor(map, sel.id, { segment: [[cursorX, cursorY], [bx, by]] });
+    }
+    if (handle === "door-end") {
+      return updateDoor(map, sel.id, { segment: [[ax, ay], [cursorX, cursorY]] });
+    }
+  }
+
+  if (sel.kind === "stairs" && original.kind === "anchors") {
+    const idx =
+      handle === "stairs-0" ? 0 :
+      handle === "stairs-1" ? 1 :
+      handle === "stairs-2" ? 2 : -1;
+    if (idx >= 0) {
+      const next: [[number, number], [number, number], [number, number]] = [
+        [original.anchors[0][0], original.anchors[0][1]],
+        [original.anchors[1][0], original.anchors[1][1]],
+        [original.anchors[2][0], original.anchors[2][1]],
+      ];
+      next[idx as 0 | 1 | 2] = [cursorX, cursorY];
+      return updateStairs(map, sel.id, { anchors: next });
     }
   }
 
@@ -239,6 +329,8 @@ export function Editor({
   const [drag, setDrag] = useState<Drag | null>(null);
   const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
   const [pathDraft, setPathDraft] = useState<PathDraft | null>(null);
+  const [doorDraft, setDoorDraft] = useState<DoorDraft | null>(null);
+  const [stairsDraft, setStairsDraft] = useState<StairsDraft | null>(null);
   const [moveDrag, setMoveDrag] = useState<MoveDrag | null>(null);
   const [resizeDrag, setResizeDrag] = useState<ResizeDrag | null>(null);
 
@@ -254,6 +346,8 @@ export function Editor({
   useEffect(() => {
     if (tool !== "wall") setWallDraft(null);
     if (tool !== "path") setPathDraft(null);
+    if (!isDoorTool(tool)) setDoorDraft(null);
+    if (tool !== "stairs") setStairsDraft(null);
   }, [tool]);
 
   // Space-key tracking for pan.
@@ -412,6 +506,25 @@ export function Editor({
       .filter((l) => !hiddenLayers.has(l.id))
       .reverse();
     for (const layer of layers) {
+      for (const d of [...(layer.doors ?? [])].reverse()) {
+        const [[ax, ay], [bx, by]] = d.segment;
+        const dist = pointToSegmentDist(
+          px, py, ax * cell, ay * cell, bx * cell, by * cell,
+        );
+        if (dist <= tol) return { kind: "door", id: d.id };
+      }
+      for (const st of [...(layer.stairs ?? [])].reverse()) {
+        // Hit-test against the convex hull of the 3 anchors approximated as
+        // their bounding box for now.
+        const xs = st.anchors.map((p) => p[0]);
+        const ys = st.anchors.map((p) => p[1]);
+        if (
+          x >= Math.min(...xs) && x <= Math.max(...xs) &&
+          y >= Math.min(...ys) && y <= Math.max(...ys)
+        ) {
+          return { kind: "stairs", id: st.id };
+        }
+      }
       for (const w of [...(layer.walls ?? [])].reverse()) {
         const [[ax, ay], [bx, by]] = w.segment;
         const dist = pointToSegmentDist(
@@ -526,6 +639,53 @@ export function Editor({
       return;
     }
 
+    if (isDoorTool(tool)) {
+      const corner = cornerFromEvent(e);
+      if (!doorDraft || doorDraft.tool !== tool) {
+        setDoorDraft({ tool, start: corner, cursor: corner });
+      } else {
+        const [sx, sy] = doorDraft.start;
+        const [ex, ey] = corner;
+        if (sx === ex && sy === ey) return;
+        const def = DOOR_TOOLS.find((t) => t.id === tool)!;
+        const allDoors = map.layers.flatMap((l) => l.doors ?? []);
+        const id = nextId("d", allDoors);
+        const door: Door = {
+          id,
+          segment: [[sx, sy], [ex, ey]],
+          kind: def.kind,
+        };
+        setMap(addDoor(map, door));
+        setDoorDraft(null);
+        setSelection({ kind: "door", id });
+      }
+      return;
+    }
+
+    if (tool === "stairs") {
+      const corner = cornerFromEvent(e);
+      if (!stairsDraft) {
+        setStairsDraft({ points: [corner], cursor: corner });
+      } else if (stairsDraft.points.length === 1) {
+        // Second click: the other corner of the "up" edge.
+        if (corner[0] === stairsDraft.points[0][0] && corner[1] === stairsDraft.points[0][1]) return;
+        setStairsDraft({ points: [stairsDraft.points[0], corner], cursor: corner });
+      } else {
+        // Third click: bottom anchor — commit.
+        const allStairs = map.layers.flatMap((l) => l.stairs ?? []);
+        const id = nextId("s", allStairs);
+        setMap(
+          addStairs(map, {
+            id,
+            anchors: [stairsDraft.points[0], stairsDraft.points[1], corner],
+          }),
+        );
+        setStairsDraft(null);
+        setSelection({ kind: "stairs", id });
+      }
+      return;
+    }
+
     if (tool === "path") {
       const { x, y } = cellFromEvent(e);
       if (!pathDraft) {
@@ -549,16 +709,15 @@ export function Editor({
     }
 
     if (isObjectTool(tool)) {
-      const def = OBJECT_TOOLS.find((t) => t.id === tool)!;
       const allObjects = map.layers.flatMap((l) => l.objects ?? []);
       const id = nextId("o", allObjects);
-      const obj = {
-        id,
-        type: tool,
-        at: [x, y] as [number, number],
-        facing: "defaultFacing" in def ? def.defaultFacing : undefined,
-      };
-      setMap(addObject(map, obj));
+      setMap(
+        addObject(map, {
+          id,
+          type: tool,
+          at: [x, y] as [number, number],
+        }),
+      );
       setSelection({ kind: "object", id });
     }
   }
@@ -609,6 +768,20 @@ export function Editor({
       const { x, y } = cellFromEvent(e);
       if (x !== pathDraft.cursor[0] || y !== pathDraft.cursor[1]) {
         setPathDraft({ ...pathDraft, cursor: [x, y] });
+      }
+      return;
+    }
+    if (doorDraft) {
+      const corner = cornerFromEvent(e);
+      if (corner[0] !== doorDraft.cursor[0] || corner[1] !== doorDraft.cursor[1]) {
+        setDoorDraft({ ...doorDraft, cursor: corner });
+      }
+      return;
+    }
+    if (stairsDraft) {
+      const corner = cornerFromEvent(e);
+      if (corner[0] !== stairsDraft.cursor[0] || corner[1] !== stairsDraft.cursor[1]) {
+        setStairsDraft({ ...stairsDraft, cursor: corner });
       }
     }
   }
@@ -675,6 +848,8 @@ export function Editor({
     if (e.key === "Escape") {
       setWallDraft(null);
       setPathDraft(null);
+      setDoorDraft(null);
+      setStairsDraft(null);
       return;
     }
     if (e.key === "Enter" && pathDraft && pathDraft.points.length >= 2) {
@@ -689,6 +864,10 @@ export function Editor({
         setMap(removeObject(map, selection.id));
       } else if (selection.kind === "wall") {
         setMap(removeWall(map, selection.id));
+      } else if (selection.kind === "door") {
+        setMap(removeDoor(map, selection.id));
+      } else if (selection.kind === "stairs") {
+        setMap(removeStairs(map, selection.id));
       } else {
         setMap(removeNote(map, selection.id));
       }
@@ -701,7 +880,10 @@ export function Editor({
   type SelDraw =
     | { kind: "box"; x: number; y: number; w: number; h: number }
     | { kind: "line"; x1: number; y1: number; x2: number; y2: number };
-  const selectionDraw: SelDraw | null = (() => {
+  type SelDrawDoor = { kind: "door-line"; x1: number; y1: number; x2: number; y2: number };
+  type SelDrawStairs = { kind: "anchors"; pts: [number, number][] };
+  type AnySelDraw = SelDraw | SelDrawDoor | SelDrawStairs;
+  const selectionDraw: AnySelDraw | null = (() => {
     if (!selection) return null;
     if (selection.kind === "note") {
       const n = (map.notes ?? []).find((n) => n.id === selection.id);
@@ -729,6 +911,23 @@ export function Editor({
           return {
             kind: "line",
             x1: ax * cell, y1: ay * cell, x2: bx * cell, y2: by * cell,
+          };
+        }
+      } else if (selection.kind === "door") {
+        const d = (layer.doors ?? []).find((d) => d.id === selection.id);
+        if (d) {
+          const [[ax, ay], [bx, by]] = d.segment;
+          return {
+            kind: "door-line",
+            x1: ax * cell, y1: ay * cell, x2: bx * cell, y2: by * cell,
+          };
+        }
+      } else if (selection.kind === "stairs") {
+        const st = (layer.stairs ?? []).find((s) => s.id === selection.id);
+        if (st) {
+          return {
+            kind: "anchors",
+            pts: st.anchors.map(([x, y]) => [x * cell, y * cell]),
           };
         }
       }
@@ -772,6 +971,17 @@ export function Editor({
         cy: (y + 0.5) * cell,
       })),
     };
+  })();
+
+  // Door/stairs draft preview shapes.
+  const doorPreview = doorDraft && (() => {
+    const [sx, sy] = doorDraft.start;
+    const [ex, ey] = doorDraft.cursor;
+    return { x1: sx * cell, y1: sy * cell, x2: ex * cell, y2: ey * cell };
+  })();
+
+  const stairsPreview = stairsDraft && (() => {
+    return stairsDraft.points.map(([x, y]) => ({ x: x * cell, y: y * cell }));
   })();
 
   // Wall-draft preview line (axis-aligned snap on the cursor).
@@ -906,29 +1116,69 @@ export function Editor({
             })}
           </g>
         )}
-        {tool === "select" && selectionDraw?.kind === "line" && (
+        {tool === "select" && (selectionDraw?.kind === "line" || selectionDraw?.kind === "door-line") && (
           <g pointerEvents="none">
-            {[
-              { dir: "wall-start" as const, cx: selectionDraw.x1, cy: selectionDraw.y1 },
-              { dir: "wall-end" as const,   cx: selectionDraw.x2, cy: selectionDraw.y2 },
-            ].map((h) => {
-              const r = 7 / zoom;
-              return (
+            {(() => {
+              const prefix = selectionDraw.kind === "door-line" ? "door" : "wall";
+              const pts = [
+                { dir: `${prefix}-start` as const, cx: selectionDraw.x1, cy: selectionDraw.y1 },
+                { dir: `${prefix}-end`   as const, cx: selectionDraw.x2, cy: selectionDraw.y2 },
+              ];
+              return pts.map((h) => (
                 <circle
                   key={h.dir}
                   data-handle={h.dir}
                   cx={h.cx}
                   cy={h.cy}
-                  r={r}
+                  r={7 / zoom}
                   fill="#c9a86a"
                   stroke="#1c1d20"
                   strokeWidth={1 / zoom}
                   pointerEvents="auto"
                   style={{ cursor: "move" }}
                 />
-              );
-            })}
+              ));
+            })()}
           </g>
+        )}
+        {tool === "select" && selectionDraw?.kind === "anchors" && (
+          <g pointerEvents="none">
+            {selectionDraw.pts.map((p, i) => (
+              <circle
+                key={i}
+                data-handle={`stairs-${i}`}
+                cx={p[0]}
+                cy={p[1]}
+                r={7 / zoom}
+                fill="#c9a86a"
+                stroke="#1c1d20"
+                strokeWidth={1 / zoom}
+                pointerEvents="auto"
+                style={{ cursor: "move" }}
+              />
+            ))}
+          </g>
+        )}
+        {selectionDraw?.kind === "door-line" && (
+          <line
+            x1={selectionDraw.x1}
+            y1={selectionDraw.y1}
+            x2={selectionDraw.x2}
+            y2={selectionDraw.y2}
+            stroke="#c9a86a"
+            strokeWidth={6}
+            strokeOpacity={0.45}
+            strokeLinecap="round"
+          />
+        )}
+        {selectionDraw?.kind === "anchors" && (
+          <polygon
+            points={selectionDraw.pts.map(p => `${p[0]},${p[1]}`).join(" ")}
+            fill="rgba(201, 168, 106, 0.18)"
+            stroke="#c9a86a"
+            strokeWidth={2}
+            strokeDasharray="6 4"
+          />
         )}
         {wallPreview && (
           <>
@@ -943,6 +1193,40 @@ export function Editor({
               strokeLinecap="square"
             />
             <circle cx={wallPreview.x1} cy={wallPreview.y1} r={4} fill="#c9a86a" />
+          </>
+        )}
+        {doorPreview && (
+          <>
+            <line
+              x1={doorPreview.x1}
+              y1={doorPreview.y1}
+              x2={doorPreview.x2}
+              y2={doorPreview.y2}
+              stroke="#c9a86a"
+              strokeWidth={cell * 0.36}
+              strokeOpacity={0.4}
+              strokeLinecap="square"
+            />
+            <circle cx={doorPreview.x1} cy={doorPreview.y1} r={4 / zoom} fill="#c9a86a" />
+            <circle cx={doorPreview.x2} cy={doorPreview.y2} r={4 / zoom} fill="#c9a86a" />
+          </>
+        )}
+        {stairsPreview && (
+          <>
+            {stairsPreview.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r={5 / zoom} fill="#c9a86a" stroke="#1c1d20" strokeWidth={1 / zoom} />
+            ))}
+            {stairsPreview.length === 2 && (
+              <line
+                x1={stairsPreview[0].x}
+                y1={stairsPreview[0].y}
+                x2={stairsPreview[1].x}
+                y2={stairsPreview[1].y}
+                stroke="#c9a86a"
+                strokeWidth={2 / zoom}
+                strokeDasharray="6 4"
+              />
+            )}
           </>
         )}
         {pathPreview && (

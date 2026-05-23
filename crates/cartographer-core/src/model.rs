@@ -76,12 +76,17 @@ pub struct Layer {
     /// final floor is the union of every carve in the layer.
     #[serde(default)]
     pub carves: Vec<Carve>,
-    /// Internal walls drawn as lines over the floor. Use these when two
-    /// rooms touch but you want a visible wall between them (the union of
-    /// touching carves alone would erase the wall). Secret doors are
-    /// typically placed on a wall.
+    /// Internal walls drawn as lines over the floor.
     #[serde(default)]
     pub walls: Vec<Wall>,
+    /// Doors defined by two anchor points. The panel runs along the
+    /// segment; tick marks cap the endpoints.
+    #[serde(default)]
+    pub doors: Vec<Door>,
+    /// Stairs defined by three anchors — anchors 0 and 1 are the two
+    /// corners of the "up" end, anchor 2 is the bottom.
+    #[serde(default)]
+    pub stairs: Vec<Stairs>,
     #[serde(default)]
     pub objects: Vec<MapObject>,
     /// Who sees this layer.
@@ -129,6 +134,36 @@ pub struct Wall {
     pub id: String,
     /// Endpoints of the wall segment, axis-aligned.
     pub segment: [[C; 2]; 2],
+}
+
+/// A door defined by two anchor points. The panel runs along the segment;
+/// thickness extends perpendicularly. Door geometry isn't axis-aligned —
+/// anchors can be at any sub-cell position.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Door {
+    pub id: String,
+    pub segment: [[C; 2]; 2],
+    #[serde(default)]
+    pub kind: DoorKind,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum DoorKind {
+    #[default]
+    Door,
+    SecretDoor,
+    LockedDoor,
+}
+
+/// Stairs defined by three anchors. Anchors `[0]` and `[1]` are the two
+/// corners of the "up" end (small steps); anchor `[2]` is the "bottom"
+/// (big steps). The stairs span the rectangle whose top edge is `[0]→[1]`
+/// and which extends perpendicularly toward `[2]`.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Stairs {
+    pub id: String,
+    pub anchors: [[C; 2]; 3],
 }
 
 /// A single carve-out. The two variants are distinguished by their fields:

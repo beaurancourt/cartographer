@@ -149,6 +149,8 @@ mod tests {
             style: Default::default(),
             carves,
             walls: vec![],
+            doors: vec![],
+            stairs: vec![],
             objects,
             audience: Default::default(),
         }

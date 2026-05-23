@@ -64,6 +64,8 @@ fn new_map() -> Map {
             style: LayerStyle::default(),
             carves: vec![],
             walls: vec![],
+            doors: vec![],
+            stairs: vec![],
             objects: vec![],
             audience,
         }

@@ -3,7 +3,9 @@
 pub mod raster;
 
 use crate::geometry;
-use crate::model::{BackgroundStyle, FloorStyle, Layer, Map, MapObject, View};
+use crate::model::{
+    BackgroundStyle, Door, DoorKind, FloorStyle, Layer, Map, MapObject, Stairs, View,
+};
 use crate::symbols;
 use geo::MultiPolygon;
 use std::fmt::Write as _;
@@ -183,8 +185,152 @@ fn render_layer(s: &mut String, layer: &Layer, cell_px: f64, theme: &Theme, opts
         s.push_str("</g>");
     }
 
+    for stairs in &layer.stairs {
+        write_stairs(s, stairs, cell_px);
+    }
+    for door in &layer.doors {
+        write_door(s, door, cell_px, opts.view);
+    }
     for obj in &layer.objects {
         write_object(s, obj, cell_px, opts.view);
+    }
+}
+
+fn write_door(s: &mut String, door: &Door, cell_px: f64, view: View) {
+    let black = "#000000";
+    let white = "#ffffff";
+    let (ax, ay) = (door.segment[0][0].as_cells() * cell_px, door.segment[0][1].as_cells() * cell_px);
+    let (bx, by) = (door.segment[1][0].as_cells() * cell_px, door.segment[1][1].as_cells() * cell_px);
+    let dx = bx - ax;
+    let dy = by - ay;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len < 0.5 {
+        return;
+    }
+    let ux = dx / len;
+    let uy = dy / len;
+    let nx = -uy;
+    let ny = ux;
+    let t = cell_px * 0.18;
+    let c1 = (ax + nx * t, ay + ny * t);
+    let c2 = (bx + nx * t, by + ny * t);
+    let c3 = (bx - nx * t, by - ny * t);
+    let c4 = (ax - nx * t, ay - ny * t);
+    let stroke_w = cell_px * 0.06;
+    let mx = (ax + bx) / 2.0;
+    let my = (ay + by) / 2.0;
+
+    let kind = if view == View::Player && door.kind == DoorKind::LockedDoor {
+        DoorKind::Door
+    } else {
+        door.kind
+    };
+
+    match kind {
+        DoorKind::Door | DoorKind::LockedDoor => {
+            let cap = cell_px * 0.26;
+            let _ = write!(
+                s,
+                r#"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}"/>"#,
+                ax + nx * cap, ay + ny * cap, ax - nx * cap, ay - ny * cap
+            );
+            let _ = write!(
+                s,
+                r#"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}"/>"#,
+                bx + nx * cap, by + ny * cap, bx - nx * cap, by - ny * cap
+            );
+            let _ = write!(
+                s,
+                r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="{white}" stroke="{black}" stroke-width="{stroke_w:.2}"/>"#,
+                c1.0, c1.1, c2.0, c2.1, c3.0, c3.1, c4.0, c4.1
+            );
+            if matches!(kind, DoorKind::LockedDoor) {
+                let _ = write!(
+                    s,
+                    r#"<circle cx="{mx:.2}" cy="{my:.2}" r="{:.2}" fill="{black}"/>"#,
+                    cell_px * 0.08
+                );
+            }
+        }
+        DoorKind::SecretDoor => {
+            let _ = write!(
+                s,
+                r#"<line x1="{ax:.2}" y1="{ay:.2}" x2="{bx:.2}" y2="{by:.2}" stroke="{black}" stroke-width="{:.2}" stroke-linecap="square"/>"#,
+                cell_px * 0.10
+            );
+            let sz = cell_px * 0.36;
+            let _ = write!(
+                s,
+                r#"<rect x="{:.2}" y="{:.2}" width="{sz:.2}" height="{sz:.2}" fill="{white}" stroke="{black}" stroke-width="{:.2}"/>"#,
+                mx - sz / 2.0,
+                my - sz / 2.0,
+                cell_px * 0.05
+            );
+            let _ = write!(
+                s,
+                r#"<text x="{mx:.2}" y="{:.2}" text-anchor="middle" font-family="Georgia, serif" font-size="{:.2}" font-style="italic" font-weight="bold" fill="{black}">S</text>"#,
+                my + cell_px * 0.13,
+                cell_px * 0.36
+            );
+        }
+    }
+}
+
+fn write_stairs(s: &mut String, stairs: &Stairs, cell_px: f64) {
+    let black = "#000000";
+    let p = stairs
+        .anchors
+        .iter()
+        .map(|a| (a[0].as_cells() * cell_px, a[1].as_cells() * cell_px))
+        .collect::<Vec<_>>();
+    let (ax, ay) = p[0];
+    let (bx, by) = p[1];
+    let (px3, py3) = p[2];
+    let dx = bx - ax;
+    let dy = by - ay;
+    let top_len = (dx * dx + dy * dy).sqrt();
+    if top_len < 1.0 {
+        return;
+    }
+    let ux = dx / top_len;
+    let uy = dy / top_len;
+    let mut nx = -uy;
+    let mut ny = ux;
+    let rel_dot = (px3 - ax) * nx + (py3 - ay) * ny;
+    if rel_dot < 0.0 {
+        nx = -nx;
+        ny = -ny;
+    }
+    let length = rel_dot.abs();
+    let mid_x = (ax + bx) / 2.0;
+    let mid_y = (ay + by) / 2.0;
+
+    let r1 = (ax, ay);
+    let r2 = (bx, by);
+    let r3 = (bx + nx * length, by + ny * length);
+    let r4 = (ax + nx * length, ay + ny * length);
+    let _ = write!(
+        s,
+        r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="none" stroke="{black}" stroke-width="{:.2}"/>"#,
+        r1.0, r1.1, r2.0, r2.1, r3.0, r3.1, r4.0, r4.1, cell_px * 0.04
+    );
+
+    let num_steps = ((length / (cell_px * 0.18)).round() as i32).max(4).min(28);
+    for i in 1..=num_steps {
+        let t = i as f64 / (num_steps + 1) as f64;
+        let step_len = top_len * (0.08 + 0.92 * t);
+        let half = step_len / 2.0;
+        let cxp = mid_x + nx * length * t;
+        let cyp = mid_y + ny * length * t;
+        let sx = cxp - ux * half;
+        let sy = cyp - uy * half;
+        let ex = cxp + ux * half;
+        let ey = cyp + uy * half;
+        let _ = write!(
+            s,
+            r#"<line x1="{sx:.2}" y1="{sy:.2}" x2="{ex:.2}" y2="{ey:.2}" stroke="{black}" stroke-width="{:.2}"/>"#,
+            cell_px * 0.05
+        );
     }
 }
 

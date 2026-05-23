@@ -47,6 +47,22 @@ pub fn validate(map: &Map) -> Result<()> {
                 )));
             }
         }
+        for d in &layer.doors {
+            if !entity_ids.insert(d.id.clone()) {
+                return Err(Error::validation(format!(
+                    "duplicate entity id `{}` in layer `{}`",
+                    d.id, layer.id
+                )));
+            }
+        }
+        for s in &layer.stairs {
+            if !entity_ids.insert(s.id.clone()) {
+                return Err(Error::validation(format!(
+                    "duplicate entity id `{}` in layer `{}`",
+                    s.id, layer.id
+                )));
+            }
+        }
         for obj in &layer.objects {
             if !entity_ids.insert(obj.id.clone()) {
                 return Err(Error::validation(format!(

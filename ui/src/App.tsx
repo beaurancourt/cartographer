@@ -6,6 +6,7 @@ import { LayerPanel } from "./LayerPanel";
 import { useMapHistory } from "./history";
 import { exportImage, loadMap, newMap, saveMap } from "./ipc";
 import {
+  DOOR_TOOLS,
   OBJECT_TOOLS,
   SNAP_OPTIONS,
   type Map,
@@ -60,9 +61,8 @@ export function App() {
         case "d": setTool("door"); break;
         case "s": setTool("secret-door"); break;
         case "l": setTool("locked-door"); break;
+        case "i": setTool("stairs"); break;
         case "p": setTool("pit-trap"); break;
-        case "u": setTool("stairs-up"); break;
-        case "j": setTool("stairs-down"); break;
         case "a": setTool("altar"); break;
         case "f": setTool("fountain"); break;
         case "c": setTool("column"); break;
@@ -218,6 +218,20 @@ export function App() {
             <ToolButton current={tool} value="wall" onClick={setTool} hint="W" label="Wall">━</ToolButton>
             <ToolButton current={tool} value="path" onClick={setTool} hint="T" label="Path">⌐</ToolButton>
             <ToolButton current={tool} value="note" onClick={setTool} hint="N" label="Note">¶</ToolButton>
+            <div className="palette-divider" />
+            {DOOR_TOOLS.map((t) => (
+              <ToolButton
+                key={t.id}
+                current={tool}
+                value={t.id}
+                onClick={setTool}
+                hint={t.id === "door" ? "D" : t.id === "secret-door" ? "S" : "L"}
+                label={t.label}
+              >
+                {t.id === "door" ? "▮" : t.id === "secret-door" ? "S" : "🔒"}
+              </ToolButton>
+            ))}
+            <ToolButton current={tool} value="stairs" onClick={setTool} hint="I" label="Stairs">⛒</ToolButton>
             <ToolButton current={tool} value="select" onClick={setTool} hint="V" label="Select">⬚</ToolButton>
             <div className="palette-divider" />
             {OBJECT_TOOLS.map((t) => (
@@ -321,12 +335,7 @@ function ToolButton({
 
 function objectHint(id: string): string | undefined {
   switch (id) {
-    case "door": return "D";
-    case "secret-door": return "S";
-    case "locked-door": return "L";
     case "pit-trap": return "P";
-    case "stairs-up": return "U";
-    case "stairs-down": return "J";
     case "altar": return "A";
     case "fountain": return "F";
     case "column": return "C";
@@ -336,15 +345,15 @@ function objectHint(id: string): string | undefined {
 
 function objectGlyph(id: string): string {
   switch (id) {
-    case "door": return "▮";
-    case "secret-door": return "S";
-    case "locked-door": return "🔒";
     case "pit-trap": return "⊠";
-    case "stairs-up": return "↑";
-    case "stairs-down": return "↓";
     case "altar": return "▤";
     case "fountain": return "◎";
     case "column": return "●";
+    case "fireplace": return "♨";
+    case "statue": return "♟";
+    case "throne": return "♔";
+    case "rubble": return "⁂";
+    case "water": return "≋";
     default: return "·";
   }
 }

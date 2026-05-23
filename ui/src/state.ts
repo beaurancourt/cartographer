@@ -16,8 +16,21 @@ export type Layer = {
   style?: object;
   carves: Carve[];
   walls?: Wall[];
+  doors?: Door[];
+  stairs?: Stairs[];
   objects?: MapObject[];
   audience?: Audience;
+};
+
+export type Door = {
+  id: string;
+  segment: [[number, number], [number, number]];
+  kind?: "door" | "secret-door" | "locked-door";
+};
+
+export type Stairs = {
+  id: string;
+  anchors: [[number, number], [number, number], [number, number]];
 };
 
 // Untagged enum (matches Rust serde): a Rect has `rect`, a Path has `path`.
@@ -76,13 +89,17 @@ export function defaultLayerForCarve(): LayerId {
 export function defaultLayerForWall(): LayerId {
   return "terrain";
 }
-export function defaultLayerForObject(type: string): LayerId {
-  switch (type) {
-    case "secret-door":
-      return "player";
-    default:
-      return "object";
-  }
+export function defaultLayerForObject(_type: string): LayerId {
+  return "object";
+}
+export function defaultLayerForDoor(kind: Door["kind"]): LayerId {
+  // Secret doors are GM-visible-as-secret + player-discovery-only — they go
+  // on the player layer so players see them once revealed. Locked doors
+  // appear in both views (player sees a plain door); they belong on object.
+  return kind === "secret-door" ? "player" : "object";
+}
+export function defaultLayerForStairs(): LayerId {
+  return "object";
 }
 
 // ── mutators ────────────────────────────────────────────────────────────────
@@ -158,6 +175,48 @@ export function updateWall(map: Map, id: string, patch: Partial<Wall>): Map {
   }));
 }
 
+export function addDoor(map: Map, door: Door): Map {
+  return addToLayer(map, defaultLayerForDoor(door.kind), (l) => ({
+    ...l,
+    doors: [...(l.doors ?? []), door],
+  }));
+}
+
+export function removeDoor(map: Map, id: string): Map {
+  return updateAllLayers(map, (l) => ({
+    ...l,
+    doors: (l.doors ?? []).filter((d) => d.id !== id),
+  }));
+}
+
+export function updateDoor(map: Map, id: string, patch: Partial<Door>): Map {
+  return updateAllLayers(map, (l) => ({
+    ...l,
+    doors: (l.doors ?? []).map((d) => (d.id === id ? { ...d, ...patch } : d)),
+  }));
+}
+
+export function addStairs(map: Map, stairs: Stairs): Map {
+  return addToLayer(map, defaultLayerForStairs(), (l) => ({
+    ...l,
+    stairs: [...(l.stairs ?? []), stairs],
+  }));
+}
+
+export function removeStairs(map: Map, id: string): Map {
+  return updateAllLayers(map, (l) => ({
+    ...l,
+    stairs: (l.stairs ?? []).filter((s) => s.id !== id),
+  }));
+}
+
+export function updateStairs(map: Map, id: string, patch: Partial<Stairs>): Map {
+  return updateAllLayers(map, (l) => ({
+    ...l,
+    stairs: (l.stairs ?? []).map((s) => (s.id === id ? { ...s, ...patch } : s)),
+  }));
+}
+
 export function addNote(map: Map, note: Note): Map {
   return { ...map, notes: [...(map.notes ?? []), note] };
 }
@@ -175,7 +234,13 @@ export function updateNote(map: Map, id: string, patch: Partial<Note>): Map {
 
 /// Move an entity to a different layer. Creates the target layer if needed.
 export function setEntityLayer(map: Map, id: string, targetLayerId: string): Map {
-  let entity: { kind: "carve" | "object" | "wall"; payload: Carve | MapObject | Wall } | null = null;
+  let entity:
+    | { kind: "carve"; payload: Carve }
+    | { kind: "object"; payload: MapObject }
+    | { kind: "wall"; payload: Wall }
+    | { kind: "door"; payload: Door }
+    | { kind: "stairs"; payload: Stairs }
+    | null = null;
   for (const layer of map.layers) {
     const c = layer.carves.find((c) => c.id === id);
     if (c) { entity = { kind: "carve", payload: c }; break; }
@@ -183,6 +248,10 @@ export function setEntityLayer(map: Map, id: string, targetLayerId: string): Map
     if (o) { entity = { kind: "object", payload: o }; break; }
     const w = (layer.walls ?? []).find((w) => w.id === id);
     if (w) { entity = { kind: "wall", payload: w }; break; }
+    const d = (layer.doors ?? []).find((d) => d.id === id);
+    if (d) { entity = { kind: "door", payload: d }; break; }
+    const st = (layer.stairs ?? []).find((s) => s.id === id);
+    if (st) { entity = { kind: "stairs", payload: st }; break; }
   }
   if (!entity) return map;
 
@@ -192,17 +261,19 @@ export function setEntityLayer(map: Map, id: string, targetLayerId: string): Map
     carves: l.carves.filter((c) => c.id !== id),
     objects: (l.objects ?? []).filter((o) => o.id !== id),
     walls: (l.walls ?? []).filter((w) => w.id !== id),
+    doors: (l.doors ?? []).filter((d) => d.id !== id),
+    stairs: (l.stairs ?? []).filter((s) => s.id !== id),
   }));
 
   // Re-insert into the target layer (creating it if missing).
   next = addToLayer(next, targetLayerId as LayerId, (l) => {
-    if (entity!.kind === "carve") {
-      return { ...l, carves: [...l.carves, entity!.payload as Carve] };
+    switch (entity!.kind) {
+      case "carve":  return { ...l, carves: [...l.carves, entity!.payload] };
+      case "object": return { ...l, objects: [...(l.objects ?? []), entity!.payload] };
+      case "wall":   return { ...l, walls: [...(l.walls ?? []), entity!.payload] };
+      case "door":   return { ...l, doors: [...(l.doors ?? []), entity!.payload] };
+      case "stairs": return { ...l, stairs: [...(l.stairs ?? []), entity!.payload] };
     }
-    if (entity!.kind === "object") {
-      return { ...l, objects: [...(l.objects ?? []), entity!.payload as MapObject] };
-    }
-    return { ...l, walls: [...(l.walls ?? []), entity!.payload as Wall] };
   });
   return next;
 }
@@ -236,6 +307,8 @@ export function findEntityLayer(map: Map, id: string): number {
     if (l.carves.some((c) => c.id === id)) return i;
     if ((l.objects ?? []).some((o) => o.id === id)) return i;
     if ((l.walls ?? []).some((w) => w.id === id)) return i;
+    if ((l.doors ?? []).some((d) => d.id === id)) return i;
+    if ((l.stairs ?? []).some((s) => s.id === id)) return i;
   }
   return -1;
 }
@@ -269,6 +342,13 @@ export function mapBbox(map: Map): { x: number; y: number; w: number; h: number 
       const [[ax, ay], [bx, by]] = w.segment;
       grow(Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by));
     }
+    for (const d of layer.doors ?? []) {
+      const [[ax, ay], [bx, by]] = d.segment;
+      grow(Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by));
+    }
+    for (const st of layer.stairs ?? []) {
+      for (const p of st.anchors) grow(p[0], p[1], p[0], p[1]);
+    }
     for (const o of layer.objects ?? []) {
       grow(o.at[0], o.at[1], o.at[0] + 1, o.at[1] + 1);
     }
@@ -277,20 +357,29 @@ export function mapBbox(map: Map): { x: number; y: number; w: number; h: number 
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
-/// Object kinds we expose as toolbar tools.
+/// Object kinds we expose as toolbar tools. Doors and stairs aren't here —
+/// they're their own anchor-based tools (see DOOR_TOOLS / "stairs" tool).
 export const OBJECT_TOOLS = [
-  { id: "door", label: "Door", defaultFacing: "ew" as const },
-  { id: "secret-door", label: "Secret door", defaultFacing: "ew" as const },
-  { id: "locked-door", label: "Locked door", defaultFacing: "ew" as const },
   { id: "pit-trap", label: "Pit trap" },
-  { id: "stairs-down", label: "Stairs ↓", defaultFacing: "s" as const },
-  { id: "stairs-up", label: "Stairs ↑", defaultFacing: "n" as const },
   { id: "altar", label: "Altar" },
   { id: "fountain", label: "Fountain" },
   { id: "column", label: "Column" },
+  { id: "fireplace", label: "Fireplace" },
+  { id: "statue", label: "Statue" },
+  { id: "throne", label: "Throne" },
+  { id: "rubble", label: "Rubble" },
+  { id: "water", label: "Water" },
 ] as const;
 
 export type ObjectTool = (typeof OBJECT_TOOLS)[number]["id"];
+
+export const DOOR_TOOLS = [
+  { id: "door", label: "Door", kind: "door" as const },
+  { id: "secret-door", label: "Secret door", kind: "secret-door" as const },
+  { id: "locked-door", label: "Locked door", kind: "locked-door" as const },
+] as const;
+
+export type DoorTool = (typeof DOOR_TOOLS)[number]["id"];
 
 export type SnapMode = 1 | 2 | 3 | 4 | 6 | 12;
 
