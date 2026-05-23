@@ -79,11 +79,10 @@ export function App() {
       resetMap(m);
       setPath(null);
       setSelection(null);
-      fit();
     } catch (e) {
       setError(String(e));
     }
-  }, [resetMap, fit]);
+  }, [resetMap]);
 
   async function handleOpen() {
     setError(null);
@@ -97,7 +96,6 @@ export function App() {
       resetMap(m);
       setPath(picked);
       setSelection(null);
-      fit();
     } catch (e) {
       setError(String(e));
     }

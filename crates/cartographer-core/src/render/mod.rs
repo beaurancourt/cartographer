@@ -318,7 +318,10 @@ fn write_stairs(s: &mut String, stairs: &Stairs, cell_px: f64) {
     let num_steps = ((length / (cell_px * 0.18)).round() as i32).max(4).min(28);
     for i in 1..=num_steps {
         let t = i as f64 / (num_steps + 1) as f64;
-        let step_len = top_len * (0.08 + 0.92 * t);
+        // Top (anchors 0–1) is the "up" end of the stairs and is closer to
+        // the viewer in a top-down view — so steps are widest at the top
+        // and narrow toward the bottom (anchor 2).
+        let step_len = top_len * (0.08 + 0.92 * (1.0 - t));
         let half = step_len / 2.0;
         let cxp = mid_x + nx * length * t;
         let cyp = mid_y + ny * length * t;

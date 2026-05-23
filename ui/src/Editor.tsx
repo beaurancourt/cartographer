@@ -22,7 +22,6 @@ import {
   updateObject,
   updateStairs,
   updateWall,
-  type Door,
   type DoorTool,
   type Map,
   type ObjectTool,
@@ -612,21 +611,16 @@ export function Editor({
 
     if (tool === "wall") {
       const corner = cornerFromEvent(e);
-      if (!wallDraft) {
-        setWallDraft({ start: corner, cursor: corner });
-      } else {
-        // Snap the second corner to be axis-aligned with the first.
+      e.currentTarget.setPointerCapture(e.pointerId);
+      if (wallDraft) {
         const [sx, sy] = wallDraft.start;
-        let [ex, ey] = corner;
-        if (Math.abs(ex - sx) >= Math.abs(ey - sy)) ey = sy;
-        else ex = sx;
-        if (ex === sx && ey === sy) return; // ignore zero-length
-        const allWalls = map.layers.flatMap((l) => l.walls ?? []);
-        const id = nextId("w", allWalls);
-        setMap(addWall(map, { id, segment: [[sx, sy], [ex, ey]] }));
-        setWallDraft(null);
-        setSelection({ kind: "wall", id });
+        const [ex0, ey0] = corner;
+        if (sx !== ex0 || sy !== ey0) {
+          commitWallDraft(corner);
+          return;
+        }
       }
+      setWallDraft({ start: corner, cursor: corner });
       return;
     }
 
@@ -641,24 +635,20 @@ export function Editor({
 
     if (isDoorTool(tool)) {
       const corner = cornerFromEvent(e);
-      if (!doorDraft || doorDraft.tool !== tool) {
-        setDoorDraft({ tool, start: corner, cursor: corner });
-      } else {
+      // Two interaction modes:
+      //   - Drag: press, move, release → commits on pointerup.
+      //   - Click-click: press, release; press again → commits.
+      // pointerdown always starts (or restarts) a draft and captures.
+      e.currentTarget.setPointerCapture(e.pointerId);
+      if (doorDraft && doorDraft.tool === tool) {
         const [sx, sy] = doorDraft.start;
         const [ex, ey] = corner;
-        if (sx === ex && sy === ey) return;
-        const def = DOOR_TOOLS.find((t) => t.id === tool)!;
-        const allDoors = map.layers.flatMap((l) => l.doors ?? []);
-        const id = nextId("d", allDoors);
-        const door: Door = {
-          id,
-          segment: [[sx, sy], [ex, ey]],
-          kind: def.kind,
-        };
-        setMap(addDoor(map, door));
-        setDoorDraft(null);
-        setSelection({ kind: "door", id });
+        if (sx !== ex || sy !== ey) {
+          commitDoorDraft(corner);
+          return;
+        }
       }
+      setDoorDraft({ tool, start: corner, cursor: corner });
       return;
     }
 
@@ -786,6 +776,45 @@ export function Editor({
     }
   }
 
+  function commitWallDraft(end: [number, number]) {
+    if (!wallDraft) return;
+    const [sx, sy] = wallDraft.start;
+    let [ex, ey] = end;
+    if (Math.abs(ex - sx) >= Math.abs(ey - sy)) ey = sy;
+    else ex = sx;
+    if (ex === sx && ey === sy) {
+      setWallDraft(null);
+      return;
+    }
+    const allWalls = map.layers.flatMap((l) => l.walls ?? []);
+    const id = nextId("w", allWalls);
+    setMap(addWall(map, { id, segment: [[sx, sy], [ex, ey]] }));
+    setWallDraft(null);
+    setSelection({ kind: "wall", id });
+  }
+
+  function commitDoorDraft(end: [number, number]) {
+    if (!doorDraft) return;
+    const [sx, sy] = doorDraft.start;
+    const [ex, ey] = end;
+    if (sx === ex && sy === ey) {
+      setDoorDraft(null);
+      return;
+    }
+    const def = DOOR_TOOLS.find((t) => t.id === doorDraft.tool)!;
+    const allDoors = map.layers.flatMap((l) => l.doors ?? []);
+    const id = nextId("d", allDoors);
+    setMap(
+      addDoor(map, {
+        id,
+        segment: [[sx, sy], [ex, ey]],
+        kind: def.kind,
+      }),
+    );
+    setDoorDraft(null);
+    setSelection({ kind: "door", id });
+  }
+
   function commitPathDraft() {
     if (!pathDraft || pathDraft.points.length < 2) {
       setPathDraft(null);
@@ -827,6 +856,25 @@ export function Editor({
       commitMap(moveDrag.snapshot, map);
       setMoveDrag(null);
       return;
+    }
+    // Drag-to-draw for wall / door: if the user actually dragged, commit
+    // on release. If they only clicked (no movement), keep the draft and
+    // wait for another click to commit.
+    if (wallDraft && tool === "wall") {
+      const corner = cornerFromEvent(e);
+      if (corner[0] !== wallDraft.start[0] || corner[1] !== wallDraft.start[1]) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        commitWallDraft(corner);
+        return;
+      }
+    }
+    if (doorDraft && isDoorTool(tool)) {
+      const corner = cornerFromEvent(e);
+      if (corner[0] !== doorDraft.start[0] || corner[1] !== doorDraft.start[1]) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        commitDoorDraft(corner);
+        return;
+      }
     }
     if (!drag) return;
     e.currentTarget.releasePointerCapture(e.pointerId);
