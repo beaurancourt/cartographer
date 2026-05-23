@@ -23,7 +23,7 @@ import { OBJECT_TOOLS } from "./state";
 const COLS = 40;
 const ROWS = 28;
 
-export type Tool = "select" | "rect" | "wall" | ObjectTool;
+export type Tool = "select" | "rect" | "wall" | "path" | ObjectTool;
 
 const OBJECT_TOOL_IDS = new Set<string>(OBJECT_TOOLS.map((t) => t.id));
 
@@ -34,6 +34,8 @@ function isObjectTool(t: Tool): t is ObjectTool {
 type Drag = { x0: number; y0: number; x1: number; y1: number };
 
 type WallDraft = { start: [number, number]; cursor: [number, number] };
+
+type PathDraft = { points: [number, number][]; cursor: [number, number] };
 
 type MoveOriginal =
   | { kind: "rect"; rect: [number, number, number, number] }
@@ -217,6 +219,7 @@ export function Editor({
   const [svg, setSvg] = useState<string>("");
   const [drag, setDrag] = useState<Drag | null>(null);
   const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
+  const [pathDraft, setPathDraft] = useState<PathDraft | null>(null);
   const [moveDrag, setMoveDrag] = useState<MoveDrag | null>(null);
   const [resizeDrag, setResizeDrag] = useState<ResizeDrag | null>(null);
 
@@ -228,9 +231,10 @@ export function Editor({
   >(null);
   const [spacePressed, setSpacePressed] = useState(false);
 
-  // Drop wall draft if the user switches away from the wall tool.
+  // Drop in-progress drafts when the active tool changes.
   useEffect(() => {
     if (tool !== "wall") setWallDraft(null);
+    if (tool !== "path") setPathDraft(null);
   }, [tool]);
 
   // Space-key tracking for pan.
@@ -477,6 +481,28 @@ export function Editor({
       return;
     }
 
+    if (tool === "path") {
+      const { x, y } = cellFromEvent(e);
+      if (!pathDraft) {
+        setPathDraft({ points: [[x, y]], cursor: [x, y] });
+      } else {
+        // Snap the new point axis-aligned with the previous one.
+        const last = pathDraft.points[pathDraft.points.length - 1];
+        const snapped = snapAxisAligned(last, [x, y]);
+        if (snapped[0] === last[0] && snapped[1] === last[1]) return;
+        // Double-click on the same point ends the path.
+        if (e.detail === 2 && pathDraft.points.length >= 2) {
+          commitPathDraft();
+          return;
+        }
+        setPathDraft({
+          points: [...pathDraft.points, snapped],
+          cursor: snapped,
+        });
+      }
+      return;
+    }
+
     if (isObjectTool(tool)) {
       const def = OBJECT_TOOLS.find((t) => t.id === tool)!;
       const allObjects = map.layers.flatMap((l) => l.objects ?? []);
@@ -529,7 +555,38 @@ export function Editor({
       if (corner[0] !== wallDraft.cursor[0] || corner[1] !== wallDraft.cursor[1]) {
         setWallDraft({ ...wallDraft, cursor: corner });
       }
+      return;
     }
+    if (pathDraft) {
+      const { x, y } = cellFromEvent(e);
+      if (x !== pathDraft.cursor[0] || y !== pathDraft.cursor[1]) {
+        setPathDraft({ ...pathDraft, cursor: [x, y] });
+      }
+    }
+  }
+
+  function commitPathDraft() {
+    if (!pathDraft || pathDraft.points.length < 2) {
+      setPathDraft(null);
+      return;
+    }
+    const allCarves = map.layers.flatMap((l) => l.carves);
+    const id = nextId("p", allCarves);
+    setMap(
+      addCarve(map, {
+        id,
+        path: pathDraft.points.map((p) => [p[0], p[1]]),
+        width: 1,
+      }),
+    );
+    setSelection({ kind: "carve", id });
+    setPathDraft(null);
+  }
+
+  function snapAxisAligned(from: [number, number], to: [number, number]): [number, number] {
+    const dx = Math.abs(to[0] - from[0]);
+    const dy = Math.abs(to[1] - from[1]);
+    return dx >= dy ? [to[0], from[1]] : [from[0], to[1]];
   }
 
   function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
@@ -569,6 +626,12 @@ export function Editor({
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
       setWallDraft(null);
+      setPathDraft(null);
+      return;
+    }
+    if (e.key === "Enter" && pathDraft && pathDraft.points.length >= 2) {
+      commitPathDraft();
+      e.preventDefault();
       return;
     }
     if ((e.key === "Delete" || e.key === "Backspace") && selection) {
@@ -625,6 +688,34 @@ export function Editor({
       const h = (Math.abs(drag.y1 - drag.y0) + step) * cell;
       return { x, y, w, h };
     })();
+
+  // Path-draft preview points & segments.
+  const pathPreview = (() => {
+    if (!pathDraft) return null;
+    const last = pathDraft.points[pathDraft.points.length - 1];
+    const snappedCursor = snapAxisAligned(last, pathDraft.cursor);
+    const segments: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    for (let i = 1; i < pathDraft.points.length; i++) {
+      const a = pathDraft.points[i - 1];
+      const b = pathDraft.points[i];
+      segments.push({
+        x1: a[0] * cell, y1: a[1] * cell,
+        x2: b[0] * cell, y2: b[1] * cell,
+      });
+    }
+    // Pending leg from the last committed point to the snapped cursor.
+    segments.push({
+      x1: last[0] * cell, y1: last[1] * cell,
+      x2: snappedCursor[0] * cell, y2: snappedCursor[1] * cell,
+    });
+    return {
+      segments,
+      points: pathDraft.points.map(([x, y]) => ({
+        cx: (x + 0.5) * cell,
+        cy: (y + 0.5) * cell,
+      })),
+    };
+  })();
 
   // Wall-draft preview line (axis-aligned snap on the cursor).
   const wallPreview = (() => {
@@ -795,6 +886,34 @@ export function Editor({
             />
             <circle cx={wallPreview.x1} cy={wallPreview.y1} r={4} fill="#c9a86a" />
           </>
+        )}
+        {pathPreview && (
+          <g>
+            {pathPreview.segments.map((s, i) => (
+              <line
+                key={i}
+                x1={s.x1 + cell / 2}
+                y1={s.y1 + cell / 2}
+                x2={s.x2 + cell / 2}
+                y2={s.y2 + cell / 2}
+                stroke="#c9a86a"
+                strokeWidth={cell * 0.85}
+                strokeOpacity={0.30}
+                strokeLinecap="square"
+              />
+            ))}
+            {pathPreview.points.map((p, i) => (
+              <circle
+                key={i}
+                cx={p.cx}
+                cy={p.cy}
+                r={4 / zoom}
+                fill="#c9a86a"
+                stroke="#1c1d20"
+                strokeWidth={1 / zoom}
+              />
+            ))}
+          </g>
         )}
       </svg>
       </div>
