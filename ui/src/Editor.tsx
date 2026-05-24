@@ -29,11 +29,12 @@ import {
 } from "./state";
 import { DOOR_TOOLS, OBJECT_TOOLS } from "./state";
 
-// Large drawing area so the canvas feels effectively infinite. Pan to reach
-// any cell within ±half this range; cells are 1×1 in float space so we just
-// render a large rectangle of grid pattern.
-const COLS = 200;
-const ROWS = 200;
+// Large drawing area so the canvas feels effectively infinite. World cells
+// span (-HALF, -HALF) to (+HALF, +HALF), and the SVG viewboxes are shifted
+// so cell 0 is genuinely at the center of the drawable region.
+const HALF_CELLS = 100;
+const COLS = HALF_CELLS * 2;
+const ROWS = HALF_CELLS * 2;
 
 export type Tool =
   | "select"
@@ -321,6 +322,9 @@ export function Editor({
   const cell = map.grid.cell_size;
   const W = COLS * cell;
   const H = ROWS * cell;
+  // Pixel offset between the canvas-content origin (top-left) and world (0,0).
+  const ORIGIN = HALF_CELLS * cell;
+  const VB = `${-ORIGIN} ${-ORIGIN} ${W} ${H}`;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [svg, setSvg] = useState<string>("");
@@ -332,9 +336,12 @@ export function Editor({
   const [moveDrag, setMoveDrag] = useState<MoveDrag | null>(null);
   const [resizeDrag, setResizeDrag] = useState<ResizeDrag | null>(null);
 
-  // Pan/zoom transform.
+  // Pan/zoom transform. Initial pan offsets by -ORIGIN so the canvas-content's
+  // top-left (which corresponds to world cell -HALF_CELLS) lines up at the
+  // viewport top-left — world origin lands roughly visible in the upper-left
+  // quadrant. The user can pan in any direction from there.
   const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: -HALF_CELLS * 50, y: -HALF_CELLS * 50 });
   const [panDrag, setPanDrag] = useState<
     { clientX: number; clientY: number; baseX: number; baseY: number } | null
   >(null);
@@ -410,7 +417,7 @@ export function Editor({
         ? map
         : { ...map, layers: map.layers.filter((l) => !hiddenLayers.has(l.id)) };
     renderMapSvg(visibleMap, {
-      viewbox: [0, 0, W, H],
+      viewbox: [-ORIGIN, -ORIGIN, W, H],
       transparentBackground: true,
       showGrid: true,
       view,
@@ -441,11 +448,13 @@ export function Editor({
   }
 
   // The cursor's "cell" is the top-left of the snap-sized square it's in.
+  // pxFromEvent returns content pixels (0..W); subtract ORIGIN to get world
+  // pixels where (0, 0) is world origin.
   function cellFromEvent(e: React.PointerEvent): { x: number; y: number } {
     const { px, py } = pxFromEvent(e);
     return {
-      x: Math.floor(px / cell / step) * step,
-      y: Math.floor(py / cell / step) * step,
+      x: Math.floor((px - ORIGIN) / cell / step) * step,
+      y: Math.floor((py - ORIGIN) / cell / step) * step,
     };
   }
 
@@ -453,8 +462,8 @@ export function Editor({
   function cornerFromEvent(e: React.PointerEvent): [number, number] {
     const { px, py } = pxFromEvent(e);
     return [
-      Math.round(px / cell / step) * step,
-      Math.round(py / cell / step) * step,
+      Math.round((px - ORIGIN) / cell / step) * step,
+      Math.round((py - ORIGIN) / cell / step) * step,
     ];
   }
 
@@ -1054,8 +1063,10 @@ export function Editor({
         }}
       >
       {/* Layer 1: black background + faint void grid via an SVG pattern so
-          we don't allocate one element per gridline. */}
-      <svg className="layer-bg" width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+          we don't allocate one element per gridline. The fill rects start
+          at the viewBox origin (negative) so the pattern covers the whole
+          drawable area, not just the positive quadrant. */}
+      <svg className="layer-bg" width={W} height={H} viewBox={VB}>
         <defs>
           <pattern
             id="editor-grid"
@@ -1073,15 +1084,15 @@ export function Editor({
             />
           </pattern>
         </defs>
-        <rect x={0} y={0} width={W} height={H} fill="#000000" />
-        <rect x={0} y={0} width={W} height={H} fill="url(#editor-grid)" />
+        <rect x={-ORIGIN} y={-ORIGIN} width={W} height={H} fill="#000000" />
+        <rect x={-ORIGIN} y={-ORIGIN} width={W} height={H} fill="url(#editor-grid)" />
       </svg>
 
       {/* Layer 2: Rust render (transparent background, viewbox locked to editor canvas). */}
       <div className="layer-render" dangerouslySetInnerHTML={{ __html: svg }} />
 
       {/* Layer 3: drag preview + selection overlay. */}
-      <svg className="layer-overlay" width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+      <svg className="layer-overlay" width={W} height={H} viewBox={VB}>
         {dragPreview && (
           <rect
             x={dragPreview.x}
