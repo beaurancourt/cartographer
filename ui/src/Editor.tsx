@@ -443,8 +443,10 @@ export function Editor({
   // Live render via Rust on every map change. The Rust SVG content is laid
   // out in world-pixel units (world_cell * cell_px), which matches our SVG's
   // coordinate system — we strip Rust's outer <svg> wrapper and graft just
-  // the inner content into our scene as a <g>. The editor draws its own
-  // grid, so we tell Rust to skip its grid.
+  // the inner content into our scene as a <g>. We let Rust draw its grid:
+  // its grid lands *over* the carved floor (which would otherwise mask the
+  // editor's own pattern grid sitting underneath), giving uniform grid
+  // coverage across void and floor alike.
   useEffect(() => {
     let cancel = false;
     const visibleMap =
@@ -453,7 +455,7 @@ export function Editor({
         : { ...map, layers: map.layers.filter((l) => !hiddenLayers.has(l.id)) };
     renderMapSvg(visibleMap, {
       transparentBackground: true,
-      showGrid: false,
+      showGrid: true,
       view,
     })
       .then((s) => {
