@@ -24,10 +24,9 @@ type Props = {
   setSelection: (s: Selection | null) => void;
 };
 
-const FACINGS = ["", "n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
+const FACINGS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 
 const FACING_LABEL: Record<string, string> = {
-  "": "—",
   n: "N",
   ne: "NE",
   e: "E",
@@ -207,7 +206,7 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
   // object
   const obj = (layer?.objects ?? []).find((o) => o.id === selection.id);
   if (!obj) return null;
-  const facing = obj.facing ?? "";
+  const facing = obj.facing ?? "n";
   function setAt(axis: 0 | 1, n: number) {
     const next: [number, number] = [obj!.at[0], obj!.at[1]];
     next[axis] = n;
@@ -227,12 +226,12 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
         <div className="facing-row">
           {FACINGS.map((f) => (
             <button
-              key={f || "none"}
+              key={f}
               className={facing === f ? "facing active" : "facing"}
               onClick={() =>
                 setMap(
                   updateObject(map, obj.id, {
-                    facing: f === "" ? undefined : (f as MapObject["facing"]),
+                    facing: f as MapObject["facing"],
                   }),
                 )
               }

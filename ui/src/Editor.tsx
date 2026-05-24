@@ -732,6 +732,7 @@ export function Editor({
           id,
           type: tool,
           at: [x, y] as [number, number],
+          facing: "n",
         }),
       );
       setSelection({ kind: "object", id });
