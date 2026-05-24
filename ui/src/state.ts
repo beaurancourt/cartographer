@@ -43,7 +43,7 @@ export type MapObject = {
   id: string;
   type: string;
   at: [number, number];
-  facing?: "n" | "s" | "e" | "w" | "ns" | "ew";
+  facing?: "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw" | "ns" | "ew";
 };
 export type Note = { id: string; at: [number, number]; text: string };
 

@@ -256,30 +256,36 @@ pub struct MapObject {
 #[serde(rename_all = "lowercase")]
 pub enum Facing {
     N,
-    S,
+    Ne,
     E,
+    Se,
+    S,
+    Sw,
     W,
+    Nw,
     /// North-south passage — door panel perpendicular to the N-S axis,
-    /// i.e. door sits in a horizontal (east-west) wall.
+    /// i.e. door sits in a horizontal (east-west) wall. Legacy alias kept
+    /// for object-style doors; new code prefers the 8 cardinal directions.
     Ns,
     /// East-west passage — door panel perpendicular to the E-W axis,
-    /// i.e. door sits in a vertical (north-south) wall.
+    /// i.e. door sits in a vertical (north-south) wall. Legacy alias.
     Ew,
 }
 
 impl Facing {
-    /// Rotation in degrees to apply to a symbol authored in its canonical
-    /// horizontal orientation (door panel wider than tall, sitting in a
-    /// north-south wall — i.e. allowing east-west passage).
-    ///
-    /// `Ew` is the canonical orientation → no rotation. `Ns` rotates 90° so
-    /// the panel becomes vertical, fitting an east-west wall.
+    /// Rotation in degrees clockwise to apply to a symbol authored in its
+    /// canonical north-up orientation. North = 0°, east = 90°, and so on
+    /// around the compass.
     pub fn rotation_deg(&self) -> f32 {
         match self {
             Facing::N => 0.0,
+            Facing::Ne => 45.0,
             Facing::E => 90.0,
+            Facing::Se => 135.0,
             Facing::S => 180.0,
+            Facing::Sw => 225.0,
             Facing::W => 270.0,
+            Facing::Nw => 315.0,
             Facing::Ew => 0.0,
             Facing::Ns => 90.0,
         }

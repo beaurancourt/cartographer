@@ -69,8 +69,11 @@ pub(crate) fn door_slot_rect(at: [C; 2], facing: Option<Facing>) -> (f64, f64, f
     let thickness = 0.50;
     let inset = (1.0 - thickness) / 2.0;
     match facing {
-        // EW passage → vertical wall → horizontal slot.
-        Some(Facing::Ew) | Some(Facing::E) | Some(Facing::W) => {
+        // EW passage → vertical wall → horizontal slot. Diagonals collapse
+        // to the nearest cardinal axis; pick whichever rotates the slot
+        // closer to its intended orientation.
+        Some(Facing::Ew) | Some(Facing::E) | Some(Facing::W)
+        | Some(Facing::Ne) | Some(Facing::Se) | Some(Facing::Sw) | Some(Facing::Nw) => {
             (x, y + inset, 1.0, thickness)
         }
         // NS passage (or no facing) → horizontal wall → vertical slot.

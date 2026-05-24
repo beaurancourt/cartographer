@@ -24,16 +24,18 @@ type Props = {
   setSelection: (s: Selection | null) => void;
 };
 
-const FACINGS = ["", "ew", "ns", "n", "s", "e", "w"] as const;
+const FACINGS = ["", "n", "ne", "e", "se", "s", "sw", "w", "nw"] as const;
 
 const FACING_LABEL: Record<string, string> = {
   "": "—",
-  ew: "EW",
-  ns: "NS",
   n: "N",
-  s: "S",
+  ne: "NE",
   e: "E",
+  se: "SE",
+  s: "S",
+  sw: "SW",
   w: "W",
+  nw: "NW",
 };
 
 export function Inspector({ map, setMap, selection, setSelection }: Props) {
