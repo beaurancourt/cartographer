@@ -29,7 +29,9 @@ export function LayerPanel({ map, hidden, setHidden }: Props) {
         const count =
           l.carves.length +
           (l.objects?.length ?? 0) +
-          (l.walls?.length ?? 0);
+          (l.walls?.length ?? 0) +
+          (l.doors?.length ?? 0) +
+          (l.stairs?.length ?? 0);
         const isHidden = hidden.has(l.id);
         const label = (LAYER_LABEL as Record<string, string>)[l.id] ?? l.id;
         return (
