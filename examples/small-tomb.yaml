@@ -2,8 +2,6 @@ version: 1
 grid:
   cell_size: 50
   ft_per_cell: 5
-background:
-  style: ink
 
 # Layout (cells):
 #   entry   [0..6]   × [0..6]    6×6

@@ -18,9 +18,6 @@ pub struct Map {
     #[serde(default)]
     pub grid: Grid,
 
-    #[serde(default)]
-    pub background: Background,
-
     pub layers: Vec<Layer>,
 }
 
@@ -40,27 +37,6 @@ impl Default for Grid {
     fn default() -> Self {
         Self { cell_size: 50, units: Some("ft".into()), ft_per_cell: Some(5) }
     }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-pub struct Background {
-    #[serde(default)]
-    pub style: BackgroundStyle,
-}
-
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum BackgroundStyle {
-    /// High-contrast black/white VTT style (Arden Vul, Old School Essentials, etc.).
-    /// Black "void" with white floor; walls implicit from contrast.
-    #[default]
-    Ink,
-    /// Warm cream parchment with hatched floor.
-    Parchment,
-    /// Plain white floor on white background with thin grey grid.
-    Clean,
-    /// Inverted "blueprint" style — white linework on dark blue.
-    Blueprint,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

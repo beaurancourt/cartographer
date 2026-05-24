@@ -9,7 +9,6 @@ import {
   DOOR_TOOLS,
   OBJECT_TOOLS,
   SNAP_OPTIONS,
-  type Map,
   type SnapMode,
   type View,
 } from "./state";
@@ -206,26 +205,6 @@ export function App() {
             ))}
           </select>
         </label>
-        {map && (
-          <select
-            className="style-picker"
-            value={map.background.style}
-            onChange={(e) =>
-              setMap({
-                ...map,
-                background: {
-                  style: e.target.value as Map["background"]["style"],
-                },
-              })
-            }
-            title="Background style"
-          >
-            <option value="ink">Ink (OSR)</option>
-            <option value="parchment">Parchment</option>
-            <option value="clean">Clean</option>
-            <option value="blueprint">Blueprint</option>
-          </select>
-        )}
         <div className="spacer" />
         {path && <span className="path">{path}</span>}
       </div>

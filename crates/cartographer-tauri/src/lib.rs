@@ -1,4 +1,4 @@
-use cartographer_core::model::{Audience, Background, BackgroundStyle, Grid, Layer, LayerStyle, View};
+use cartographer_core::model::{Audience, Grid, Layer, LayerStyle, View};
 use cartographer_core::{ImageFormat, Map, RenderOptions, load_yaml, render_image, render_svg, validate};
 use std::path::PathBuf;
 
@@ -74,7 +74,6 @@ fn new_map() -> Map {
     Map {
         version: 1,
         grid: Grid::default(),
-        background: Background { style: BackgroundStyle::Ink },
         // Standard four-layer setup. Editor placements default to:
         //   terrain  — rooms (rect carves) and walls
         //   object   — visible objects (doors, stairs, altars, columns, …)

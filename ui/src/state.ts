@@ -4,7 +4,6 @@
 export type Map = {
   version: number;
   grid: { cell_size: number; ft_per_cell?: number; units?: string };
-  background: { style: "ink" | "parchment" | "clean" | "blueprint" };
   layers: Layer[];
 };
 

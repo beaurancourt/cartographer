@@ -4,7 +4,7 @@ pub mod raster;
 
 use crate::geometry;
 use crate::model::{
-    BackgroundStyle, Door, DoorKind, FloorStyle, Layer, Map, MapObject, Stairs, View,
+    Door, DoorKind, FloorStyle, Layer, Map, MapObject, Stairs, View,
 };
 use crate::symbols;
 use geo::MultiPolygon;
@@ -59,7 +59,7 @@ pub fn render_svg(map: &Map, opts: &RenderOptions) -> String {
         }
     };
 
-    let theme = theme_for(map.background.style);
+    let theme = ink_theme();
     let mut s = String::with_capacity(8192);
 
     let _ = write!(
@@ -497,51 +497,16 @@ struct Theme {
     note_color: &'static str,
 }
 
-fn theme_for(style: BackgroundStyle) -> Theme {
-    match style {
-        BackgroundStyle::Ink => Theme {
-            background: "#000000",
-            floor: "#ffffff",
-            wall_stroke: None,
-            wall_stroke_width: 0.0,
-            interior_wall: "#000000",
-            grid: "#000000",
-            grid_opacity: 0.55,
-            hatch: None,
-            note_color: "#000000",
-        },
-        BackgroundStyle::Parchment => Theme {
-            background: "#e7dcc0",
-            floor: "#f6efd7",
-            wall_stroke: Some("#1a1a1a"),
-            wall_stroke_width: 0.08,
-            interior_wall: "#1a1a1a",
-            grid: "#a99775",
-            grid_opacity: 0.35,
-            hatch: Some("#a99775"),
-            note_color: "#3d2c12",
-        },
-        BackgroundStyle::Clean => Theme {
-            background: "#ffffff",
-            floor: "#ffffff",
-            wall_stroke: Some("#1a1a1a"),
-            wall_stroke_width: 0.06,
-            interior_wall: "#1a1a1a",
-            grid: "#cccccc",
-            grid_opacity: 0.7,
-            hatch: None,
-            note_color: "#1a1a1a",
-        },
-        BackgroundStyle::Blueprint => Theme {
-            background: "#1d3a63",
-            floor: "#22467a",
-            wall_stroke: Some("#e8f1ff"),
-            wall_stroke_width: 0.06,
-            interior_wall: "#e8f1ff",
-            grid: "#80a7d6",
-            grid_opacity: 0.5,
-            hatch: None,
-            note_color: "#e8f1ff",
-        },
+fn ink_theme() -> Theme {
+    Theme {
+        background: "#000000",
+        floor: "#ffffff",
+        wall_stroke: None,
+        wall_stroke_width: 0.0,
+        interior_wall: "#000000",
+        grid: "#000000",
+        grid_opacity: 0.55,
+        hatch: None,
+        note_color: "#000000",
     }
 }
