@@ -1,0 +1,143 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.2.0). The tag must already exist."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: create release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - name: Create or refresh release with auto-generated notes
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          body_path: .github/RELEASE_BODY.md
+          generate_release_notes: true
+
+  build:
+    needs: create-release
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            os: unix
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            os: unix
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            os: windows
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Shared between CLI and Tauri builds — they sit in the same workspace.
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install Linux WebKit and packaging deps
+        if: matrix.runner == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            patchelf \
+            file
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install JS deps
+        shell: bash
+        run: |
+          npm install
+          npm --prefix ui install
+
+      # Prebuilt binary; ~10s vs ~3min for `cargo install tauri-cli`.
+      - name: Install cargo-tauri (prebuilt)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: tauri-cli@2
+
+      - name: Build CLI
+        run: cargo build --release --target ${{ matrix.target }} --locked -p cartographer-cli
+
+      - name: Stage CLI binary (Unix)
+        if: matrix.os == 'unix'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="cartographer-${{ matrix.target }}"
+          cp "target/${{ matrix.target }}/release/cartographer" "$bin"
+          shasum -a 256 "$bin" > "$bin.sha256"
+          {
+            echo "BIN=$bin"
+            echo "BIN_SHA=$bin.sha256"
+          } >> "$GITHUB_ENV"
+
+      - name: Stage CLI binary (Windows)
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          $bin = "cartographer-${{ matrix.target }}.exe"
+          Copy-Item "target/${{ matrix.target }}/release/cartographer.exe" $bin
+          (Get-FileHash $bin -Algorithm SHA256).Hash.ToLower() + "  $bin" | Out-File -Encoding ascii "$bin.sha256"
+          "BIN=$bin" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "BIN_SHA=$bin.sha256" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+
+      # The tauri.conf.json lives next to the tauri crate; cargo-tauri walks up
+      # from cwd to find it, so we run from there. Reuses every dep already
+      # compiled for the CLI thanks to the shared target dir.
+      - name: Build app bundle
+        working-directory: crates/cartographer-tauri
+        run: cargo tauri build --target ${{ matrix.target }}
+
+      - name: Upload all artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: |
+            ${{ env.BIN }}
+            ${{ env.BIN_SHA }}
+            target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+            target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            target/${{ matrix.target }}/release/bundle/deb/*.deb
+            target/${{ matrix.target }}/release/bundle/msi/*.msi
+            target/${{ matrix.target }}/release/bundle/nsis/*.exe
+          fail_on_unmatched_files: false
