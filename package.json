@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "npm --prefix ui run dev",
     "build": "npm --prefix ui run build",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
-    "tauri:info": "tauri info"
+    "tauri": "cd crates/cartographer-tauri && tauri",
+    "tauri:dev": "cd crates/cartographer-tauri && tauri dev",
+    "tauri:build": "cd crates/cartographer-tauri && tauri build",
+    "tauri:info": "cd crates/cartographer-tauri && tauri info"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"
