@@ -74,6 +74,14 @@ pub fn validate(map: &Map) -> Result<()> {
                 return Err(Error::UnknownSymbol(obj.kind.clone()));
             }
         }
+        for note in &layer.notes {
+            if !entity_ids.insert(note.id.clone()) {
+                return Err(Error::validation(format!(
+                    "duplicate entity id `{}` in layer `{}`",
+                    note.id, layer.id
+                )));
+            }
+        }
     }
 
     Ok(())

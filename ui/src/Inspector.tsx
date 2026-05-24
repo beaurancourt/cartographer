@@ -55,46 +55,6 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
     );
   }
 
-  // Notes live at map level, not inside a layer.
-  if (selection.kind === "note") {
-    const note = (map.notes ?? []).find((n) => n.id === selection.id);
-    if (!note) return null;
-    function setAt(axis: 0 | 1, n: number) {
-      const next: [number, number] = [note!.at[0], note!.at[1]];
-      next[axis] = n;
-      setMap(updateNote(map, note!.id, { at: next }));
-    }
-    return (
-      <div className="inspector">
-        <h3>Note</h3>
-        <Field label="id" value={note.id} />
-        <div className="coord-row">
-          <NumberField label="x" value={note.at[0]} onChange={(n) => setAt(0, n)} />
-          <NumberField label="y" value={note.at[1]} onChange={(n) => setAt(1, n)} />
-        </div>
-        <div className="field">
-          <label>text</label>
-          <input
-            type="text"
-            className="text-input"
-            value={note.text}
-            onChange={(e) => setMap(updateNote(map, note.id, { text: e.target.value }))}
-            autoFocus={note.text === ""}
-          />
-        </div>
-        <button
-          className="danger"
-          onClick={() => {
-            setMap(removeNote(map, note.id));
-            setSelection(null);
-          }}
-        >
-          Delete
-        </button>
-      </div>
-    );
-  }
-
   const layerIdx = findEntityLayer(map, selection.id);
   const layer = map.layers[layerIdx];
   const currentLayerId = layer?.id ?? "";
@@ -117,6 +77,53 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
             <option value={currentLayerId}>{currentLayerId}</option>
           )}
         </select>
+      </div>
+    );
+  }
+
+  if (selection.kind === "note") {
+    const note = (layer?.notes ?? []).find((n) => n.id === selection.id);
+    if (!note) return null;
+    function setAt(axis: 0 | 1, n: number) {
+      const next: [number, number] = [note!.at[0], note!.at[1]];
+      next[axis] = n;
+      setMap(updateNote(map, note!.id, { at: next }));
+    }
+    return (
+      <div className="inspector">
+        <h3>Note</h3>
+        <Field label="id" value={note.id} />
+        <div className="coord-row">
+          <NumberField label="x" value={note.at[0]} onChange={(n) => setAt(0, n)} />
+          <NumberField label="y" value={note.at[1]} onChange={(n) => setAt(1, n)} />
+        </div>
+        <div className="field">
+          <label>text</label>
+          {/* key={note.id} forces React to remount the input on each fresh
+              note selection so `autoFocus` can re-fire — without it,
+              placing a new note via the tool wouldn't shift typing focus
+              to the input. autoFocus is gated on empty text so re-
+              selecting an already-written note doesn't steal focus from
+              wherever the user was. */}
+          <input
+            key={note.id}
+            type="text"
+            className="text-input"
+            value={note.text}
+            onChange={(e) => setMap(updateNote(map, note.id, { text: e.target.value }))}
+            autoFocus={note.text === ""}
+          />
+        </div>
+        {layerPicker()}
+        <button
+          className="danger"
+          onClick={() => {
+            setMap(removeNote(map, note.id));
+            setSelection(null);
+          }}
+        >
+          Delete
+        </button>
       </div>
     );
   }

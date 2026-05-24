@@ -22,9 +22,6 @@ pub struct Map {
     pub background: Background,
 
     pub layers: Vec<Layer>,
-
-    #[serde(default)]
-    pub notes: Vec<Note>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -89,6 +86,11 @@ pub struct Layer {
     pub stairs: Vec<Stairs>,
     #[serde(default)]
     pub objects: Vec<MapObject>,
+    /// Free-floating text annotations anchored to a cell. Drawn over the
+    /// floor and walls; respects the layer's audience (gm-only by default
+    /// when authored via the editor).
+    #[serde(default)]
+    pub notes: Vec<Note>,
     /// Who sees this layer.
     ///   `shared` (default) — visible in both GM and Player views.
     ///   `player` — visible to players (and to the GM in the editor).

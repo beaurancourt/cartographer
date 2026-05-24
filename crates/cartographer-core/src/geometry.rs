@@ -155,6 +155,7 @@ mod tests {
             doors: vec![],
             stairs: vec![],
             objects,
+            notes: vec![],
             audience: Default::default(),
         }
     }

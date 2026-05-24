@@ -67,6 +67,7 @@ fn new_map() -> Map {
             doors: vec![],
             stairs: vec![],
             objects: vec![],
+            notes: vec![],
             audience,
         }
     }
@@ -85,7 +86,6 @@ fn new_map() -> Map {
             layer("player", Audience::Player),
             layer("gm", Audience::Gm),
         ],
-        notes: vec![],
     }
 }
 

@@ -6,7 +6,6 @@ export type Map = {
   grid: { cell_size: number; ft_per_cell?: number; units?: string };
   background: { style: "ink" | "parchment" | "clean" | "blueprint" };
   layers: Layer[];
-  notes?: Note[];
 };
 
 export type Audience = "shared" | "player" | "gm";
@@ -19,6 +18,7 @@ export type Layer = {
   doors?: Door[];
   stairs?: Stairs[];
   objects?: MapObject[];
+  notes?: Note[];
   audience?: Audience;
 };
 
@@ -100,6 +100,9 @@ export function defaultLayerForDoor(kind: Door["kind"]): LayerId {
 }
 export function defaultLayerForStairs(): LayerId {
   return "object";
+}
+export function defaultLayerForNote(): LayerId {
+  return "gm";
 }
 
 // ── mutators ────────────────────────────────────────────────────────────────
@@ -218,18 +221,24 @@ export function updateStairs(map: Map, id: string, patch: Partial<Stairs>): Map 
 }
 
 export function addNote(map: Map, note: Note): Map {
-  return { ...map, notes: [...(map.notes ?? []), note] };
+  return addToLayer(map, defaultLayerForNote(), (l) => ({
+    ...l,
+    notes: [...(l.notes ?? []), note],
+  }));
 }
 
 export function removeNote(map: Map, id: string): Map {
-  return { ...map, notes: (map.notes ?? []).filter((n) => n.id !== id) };
+  return updateAllLayers(map, (l) => ({
+    ...l,
+    notes: (l.notes ?? []).filter((n) => n.id !== id),
+  }));
 }
 
 export function updateNote(map: Map, id: string, patch: Partial<Note>): Map {
-  return {
-    ...map,
-    notes: (map.notes ?? []).map((n) => (n.id === id ? { ...n, ...patch } : n)),
-  };
+  return updateAllLayers(map, (l) => ({
+    ...l,
+    notes: (l.notes ?? []).map((n) => (n.id === id ? { ...n, ...patch } : n)),
+  }));
 }
 
 /// Move an entity to a different layer. Creates the target layer if needed.
@@ -240,6 +249,7 @@ export function setEntityLayer(map: Map, id: string, targetLayerId: string): Map
     | { kind: "wall"; payload: Wall }
     | { kind: "door"; payload: Door }
     | { kind: "stairs"; payload: Stairs }
+    | { kind: "note"; payload: Note }
     | null = null;
   for (const layer of map.layers) {
     const c = layer.carves.find((c) => c.id === id);
@@ -252,6 +262,8 @@ export function setEntityLayer(map: Map, id: string, targetLayerId: string): Map
     if (d) { entity = { kind: "door", payload: d }; break; }
     const st = (layer.stairs ?? []).find((s) => s.id === id);
     if (st) { entity = { kind: "stairs", payload: st }; break; }
+    const n = (layer.notes ?? []).find((n) => n.id === id);
+    if (n) { entity = { kind: "note", payload: n }; break; }
   }
   if (!entity) return map;
 
@@ -263,6 +275,7 @@ export function setEntityLayer(map: Map, id: string, targetLayerId: string): Map
     walls: (l.walls ?? []).filter((w) => w.id !== id),
     doors: (l.doors ?? []).filter((d) => d.id !== id),
     stairs: (l.stairs ?? []).filter((s) => s.id !== id),
+    notes: (l.notes ?? []).filter((n) => n.id !== id),
   }));
 
   // Re-insert into the target layer (creating it if missing).
@@ -273,6 +286,7 @@ export function setEntityLayer(map: Map, id: string, targetLayerId: string): Map
       case "wall":   return { ...l, walls: [...(l.walls ?? []), entity!.payload] };
       case "door":   return { ...l, doors: [...(l.doors ?? []), entity!.payload] };
       case "stairs": return { ...l, stairs: [...(l.stairs ?? []), entity!.payload] };
+      case "note":   return { ...l, notes: [...(l.notes ?? []), entity!.payload] };
     }
   });
   return next;
@@ -309,6 +323,7 @@ export function findEntityLayer(map: Map, id: string): number {
     if ((l.walls ?? []).some((w) => w.id === id)) return i;
     if ((l.doors ?? []).some((d) => d.id === id)) return i;
     if ((l.stairs ?? []).some((s) => s.id === id)) return i;
+    if ((l.notes ?? []).some((n) => n.id === id)) return i;
   }
   return -1;
 }

@@ -114,11 +114,12 @@ type Props = {
 };
 
 function entityPosition(map: Map, sel: Selection): MoveOriginal | null {
-  if (sel.kind === "note") {
-    const n = (map.notes ?? []).find((n) => n.id === sel.id);
-    return n ? { kind: "at", at: [n.at[0], n.at[1]] } : null;
-  }
   for (const layer of map.layers) {
+    if (sel.kind === "note") {
+      const n = (layer.notes ?? []).find((n) => n.id === sel.id);
+      if (n) return { kind: "at", at: [n.at[0], n.at[1]] };
+      continue;
+    }
     if (sel.kind === "carve") {
       const c = layer.carves.find((c) => c.id === sel.id);
       if (c && isRectCarve(c)) {
@@ -514,18 +515,18 @@ export function Editor({
   function hitTest(x: number, y: number, e: React.PointerEvent): Selection | null {
     const { px, py } = pxFromEvent(e);
     const tol = cell * 0.25;
-    // Notes are top-most overlay text — hit-test them before layers.
-    for (const n of [...(map.notes ?? [])].reverse()) {
-      if (n.at[0] <= x && x < n.at[0] + 1 && n.at[1] <= y && y < n.at[1] + 1) {
-        return { kind: "note", id: n.id };
-      }
-    }
     // Iterate all visible layers; later layers visually sit on top, so
-    // search them first (reverse).
+    // search them first (reverse). Notes hit-test before everything else
+    // in a layer since they're rendered last (on top).
     const layers = [...map.layers]
       .filter((l) => !hiddenLayers.has(l.id))
       .reverse();
     for (const layer of layers) {
+      for (const n of [...(layer.notes ?? [])].reverse()) {
+        if (n.at[0] <= x && x < n.at[0] + 1 && n.at[1] <= y && y < n.at[1] + 1) {
+          return { kind: "note", id: n.id };
+        }
+      }
       for (const d of [...(layer.doors ?? [])].reverse()) {
         const [[ax, ay], [bx, by]] = d.segment;
         const dist = pointToSegmentDist(
@@ -647,7 +648,8 @@ export function Editor({
 
     if (tool === "note") {
       const { x, y } = cellFromEvent(e);
-      const id = nextId("n", map.notes ?? []);
+      const allNotes = map.layers.flatMap((l) => l.notes ?? []);
+      const id = nextId("n", allNotes);
       const note = { id, at: [x, y] as [number, number], text: "" };
       setMap(addNote(map, note));
       setSelection({ kind: "note", id });
@@ -962,14 +964,14 @@ export function Editor({
   type AnySelDraw = SelDraw | SelDrawDoor | SelDrawStairs;
   const selectionDraw: AnySelDraw | null = (() => {
     if (!selection) return null;
-    if (selection.kind === "note") {
-      const n = (map.notes ?? []).find((n) => n.id === selection.id);
-      if (n) {
-        return { kind: "box", x: n.at[0] * cell, y: n.at[1] * cell, w: cell, h: cell };
-      }
-      return null;
-    }
     for (const layer of map.layers) {
+      if (selection.kind === "note") {
+        const n = (layer.notes ?? []).find((n) => n.id === selection.id);
+        if (n) {
+          return { kind: "box", x: n.at[0] * cell, y: n.at[1] * cell, w: cell, h: cell };
+        }
+        continue;
+      }
       if (selection.kind === "carve") {
         const c = layer.carves.find((c) => c.id === selection.id);
         if (c && isRectCarve(c)) {

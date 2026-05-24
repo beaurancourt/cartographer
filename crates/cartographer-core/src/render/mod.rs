@@ -82,18 +82,6 @@ pub fn render_svg(map: &Map, opts: &RenderOptions) -> String {
         render_layer(&mut s, layer, cell_px, &theme, opts);
     }
 
-    for note in &map.notes {
-        let cx = (note.at[0].as_cells() + 0.5) * cell_px;
-        let cy = (note.at[1].as_cells() + 0.5) * cell_px;
-        let _ = write!(
-            s,
-            r#"<text x="{cx:.2}" y="{cy:.2}" text-anchor="middle" font-family="Georgia, serif" font-size="{}" fill="{}">{}</text>"#,
-            (cell_px * 0.3),
-            theme.note_color,
-            xml_escape(&note.text),
-        );
-    }
-
     s.push_str("</svg>");
     s
 }
@@ -202,6 +190,17 @@ fn render_layer(s: &mut String, layer: &Layer, cell_px: f64, theme: &Theme, opts
     }
     for obj in &layer.objects {
         write_object(s, obj, cell_px, opts.view);
+    }
+    for note in &layer.notes {
+        let cx = (note.at[0].as_cells() + 0.5) * cell_px;
+        let cy = (note.at[1].as_cells() + 0.5) * cell_px;
+        let _ = write!(
+            s,
+            r#"<text x="{cx:.2}" y="{cy:.2}" text-anchor="middle" font-family="Georgia, serif" font-size="{:.2}" fill="{}">{}</text>"#,
+            cell_px * 0.3,
+            theme.note_color,
+            xml_escape(&note.text),
+        );
     }
 }
 
