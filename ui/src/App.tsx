@@ -22,8 +22,6 @@ export function App() {
   const [snap, setSnap] = useState<SnapMode>(1);
   const [view, setView] = useState<View>("gm");
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [fitToken, setFitToken] = useState(0);
-  const fit = useCallback(() => setFitToken((t) => t + 1), []);
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
   const [cursor, setCursor] = useState<[number, number] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +153,6 @@ export function App() {
         <div className="divider" />
         <button onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">↶</button>
         <button onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">↷</button>
-        <button onClick={fit} disabled={!map} title="Fit map to viewport">Fit</button>
         <div className="divider" />
         <div className="view-toggle" title="GM sees everything; Player hides gm-only layers">
           <button
@@ -256,7 +253,6 @@ export function App() {
               view={view}
               selection={selection}
               setSelection={setSelection}
-              fitToken={fitToken}
               hiddenLayers={hiddenLayers}
               onCursorChange={setCursor}
             />

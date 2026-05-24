@@ -8,7 +8,6 @@ import {
   addStairs,
   addWall,
   isRectCarve,
-  mapBbox,
   nextId,
   removeCarve,
   removeDoor,
@@ -30,8 +29,11 @@ import {
 } from "./state";
 import { DOOR_TOOLS, OBJECT_TOOLS } from "./state";
 
-const COLS = 40;
-const ROWS = 28;
+// Large drawing area so the canvas feels effectively infinite. Pan to reach
+// any cell within ±half this range; cells are 1×1 in float space so we just
+// render a large rectangle of grid pattern.
+const COLS = 200;
+const ROWS = 200;
 
 export type Tool =
   | "select"
@@ -109,8 +111,6 @@ type Props = {
   view: View;
   selection: Selection | null;
   setSelection: (s: Selection | null) => void;
-  /// Bumping this counter triggers a fit-to-view inside the editor.
-  fitToken: number;
   /// Layer ids the user has temporarily hidden in the editor. They're still
   /// in the map data and will appear in exports; only the live preview and
   /// the hit-test ignore them.
@@ -314,7 +314,6 @@ export function Editor({
   view,
   selection,
   setSelection,
-  fitToken,
   hiddenLayers,
   onCursorChange,
 }: Props) {
@@ -369,37 +368,6 @@ export function Editor({
       window.removeEventListener("keyup", up);
     };
   }, []);
-
-  // Fit-to-view on demand. Bumping `fitToken` (from the toolbar Fit button
-  // or after Open/New) recenters and rescales so the map's bbox fills the
-  // visible viewport with a small margin.
-  useEffect(() => {
-    if (fitToken === 0) return; // initial mount; nothing to fit
-    const wrap = wrapperRef.current;
-    if (!wrap) return;
-    const bbox = mapBbox(map);
-    const rect = wrap.getBoundingClientRect();
-    if (!bbox || rect.width === 0 || rect.height === 0) {
-      // Empty map: reset to identity at top-left.
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
-      return;
-    }
-    const margin = 0.85;
-    const bboxPxW = bbox.w * cell;
-    const bboxPxH = bbox.h * cell;
-    const newZoom = Math.min(
-      4,
-      Math.max(0.25, Math.min((rect.width * margin) / bboxPxW, (rect.height * margin) / bboxPxH)),
-    );
-    const bboxCenterX = (bbox.x + bbox.w / 2) * cell;
-    const bboxCenterY = (bbox.y + bbox.h / 2) * cell;
-    setZoom(newZoom);
-    setPan({
-      x: rect.width / 2 - bboxCenterX * newZoom,
-      y: rect.height / 2 - bboxCenterY * newZoom,
-    });
-  }, [fitToken, map, cell]);
 
   // Wheel: plain wheel/two-finger pans (trackpad native), Cmd/Ctrl+wheel
   // zooms around the cursor.
@@ -1085,17 +1053,28 @@ export function Editor({
           height: H,
         }}
       >
-      {/* Layer 1: black background + faint void grid so the user can plan placement. */}
+      {/* Layer 1: black background + faint void grid via an SVG pattern so
+          we don't allocate one element per gridline. */}
       <svg className="layer-bg" width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+        <defs>
+          <pattern
+            id="editor-grid"
+            x={0}
+            y={0}
+            width={cell}
+            height={cell}
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d={`M ${cell} 0 L 0 0 L 0 ${cell}`}
+              fill="none"
+              stroke="#1f1f22"
+              strokeWidth={0.6}
+            />
+          </pattern>
+        </defs>
         <rect x={0} y={0} width={W} height={H} fill="#000000" />
-        <g stroke="#1f1f22" strokeWidth={0.6}>
-          {Array.from({ length: COLS + 1 }).map((_, i) => (
-            <line key={`v${i}`} x1={i * cell} y1={0} x2={i * cell} y2={H} />
-          ))}
-          {Array.from({ length: ROWS + 1 }).map((_, i) => (
-            <line key={`h${i}`} x1={0} y1={i * cell} x2={W} y2={i * cell} />
-          ))}
-        </g>
+        <rect x={0} y={0} width={W} height={H} fill="url(#editor-grid)" />
       </svg>
 
       {/* Layer 2: Rust render (transparent background, viewbox locked to editor canvas). */}
