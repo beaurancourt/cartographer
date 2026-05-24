@@ -28,6 +28,16 @@ export function App() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Esc is global: works from inputs and the canvas alike. Drops the
+      // current selection and blurs whatever was focused, so the user can
+      // get out of a text box and unselect in one keystroke.
+      if (e.key === "Escape") {
+        e.preventDefault();
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        setSelection(null);
+        return;
+      }
+
       const t = e.target as HTMLElement | null;
       if (
         t &&
