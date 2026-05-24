@@ -512,8 +512,15 @@ export function Editor({
     ];
   }
 
-  function hitTest(x: number, y: number, e: React.PointerEvent): Selection | null {
+  function hitTest(e: React.PointerEvent): Selection | null {
     const { px, py } = pxFromEvent(e);
+    // Cursor in cell units as a continuous float — use this for all
+    // bounding-box containment so entities placed at fractional snap
+    // (e.g. 0.5) stay selectable regardless of the current snap mode.
+    // Using the snap-floored x/y instead would make a half-cell-placed
+    // note unselectable from the cell halves the snap doesn't quantize to.
+    const fx = px / cell;
+    const fy = py / cell;
     const tol = cell * 0.25;
     // Iterate all visible layers; later layers visually sit on top, so
     // search them first (reverse). Notes hit-test before everything else
@@ -523,7 +530,7 @@ export function Editor({
       .reverse();
     for (const layer of layers) {
       for (const n of [...(layer.notes ?? [])].reverse()) {
-        if (n.at[0] <= x && x < n.at[0] + 1 && n.at[1] <= y && y < n.at[1] + 1) {
+        if (n.at[0] <= fx && fx < n.at[0] + 1 && n.at[1] <= fy && fy < n.at[1] + 1) {
           return { kind: "note", id: n.id };
         }
       }
@@ -540,8 +547,8 @@ export function Editor({
         const xs = st.anchors.map((p) => p[0]);
         const ys = st.anchors.map((p) => p[1]);
         if (
-          x >= Math.min(...xs) && x <= Math.max(...xs) &&
-          y >= Math.min(...ys) && y <= Math.max(...ys)
+          fx >= Math.min(...xs) && fx <= Math.max(...xs) &&
+          fy >= Math.min(...ys) && fy <= Math.max(...ys)
         ) {
           return { kind: "stairs", id: st.id };
         }
@@ -549,24 +556,19 @@ export function Editor({
       for (const w of [...(layer.walls ?? [])].reverse()) {
         const [[ax, ay], [bx, by]] = w.segment;
         const dist = pointToSegmentDist(
-          px,
-          py,
-          ax * cell,
-          ay * cell,
-          bx * cell,
-          by * cell,
+          px, py, ax * cell, ay * cell, bx * cell, by * cell,
         );
         if (dist <= tol) return { kind: "wall", id: w.id };
       }
       for (const obj of [...(layer.objects ?? [])].reverse()) {
-        if (obj.at[0] <= x && x < obj.at[0] + 1 && obj.at[1] <= y && y < obj.at[1] + 1) {
+        if (obj.at[0] <= fx && fx < obj.at[0] + 1 && obj.at[1] <= fy && fy < obj.at[1] + 1) {
           return { kind: "object", id: obj.id };
         }
       }
       for (const c of [...layer.carves].reverse()) {
         if (isRectCarve(c)) {
           const [cx, cy, cw, ch] = c.rect;
-          if (x >= cx && x < cx + cw && y >= cy && y < cy + ch) {
+          if (fx >= cx && fx < cx + cw && fy >= cy && fy < cy + ch) {
             return { kind: "carve", id: c.id };
           }
         } else {
@@ -591,7 +593,7 @@ export function Editor({
             } else {
               continue;
             }
-            if (x >= rx && x < rx + rw && y >= ry && y < ry + rh) {
+            if (fx >= rx && fx < rx + rw && fy >= ry && fy < ry + rh) {
               return { kind: "carve", id: c.id };
             }
           }
@@ -640,7 +642,7 @@ export function Editor({
     }
 
     if (tool === "select") {
-      const hit = hitTest(x, y, e);
+      const hit = hitTest(e);
       setSelection(hit);
       if (hit) {
         const original = entityPosition(map, hit);
@@ -659,15 +661,15 @@ export function Editor({
 
     if (tool === "wall") {
       const corner = cornerFromEvent(e);
-      e.currentTarget.setPointerCapture(e.pointerId);
       if (wallDraft) {
         const [sx, sy] = wallDraft.start;
-        const [ex0, ey0] = corner;
-        if (sx !== ex0 || sy !== ey0) {
+        if (sx !== corner[0] || sy !== corner[1]) {
           commitWallDraft(corner);
           return;
         }
       }
+      // Starting a new draft — capture so drag-to-draw works.
+      e.currentTarget.setPointerCapture(e.pointerId);
       setWallDraft({ start: corner, cursor: corner });
       return;
     }
@@ -687,16 +689,15 @@ export function Editor({
       // Two interaction modes:
       //   - Drag: press, move, release → commits on pointerup.
       //   - Click-click: press, release; press again → commits.
-      // pointerdown always starts (or restarts) a draft and captures.
-      e.currentTarget.setPointerCapture(e.pointerId);
       if (doorDraft && doorDraft.tool === tool) {
         const [sx, sy] = doorDraft.start;
-        const [ex, ey] = corner;
-        if (sx !== ex || sy !== ey) {
+        if (sx !== corner[0] || sy !== corner[1]) {
           commitDoorDraft(corner);
           return;
         }
       }
+      // Starting a new draft — capture so drag-to-draw works.
+      e.currentTarget.setPointerCapture(e.pointerId);
       setDoorDraft({ tool, start: corner, cursor: corner });
       return;
     }
@@ -730,20 +731,22 @@ export function Editor({
       if (!pathDraft) {
         setPathDraft({ points: [[x, y]], cursor: [x, y] });
       } else {
-        // Snap the new point axis-aligned with the previous one.
-        const last = pathDraft.points[pathDraft.points.length - 1];
-        const snapped = snapAxisAligned(last, [x, y]);
-        // Clicking back onto a cell that already has a point commits the
-        // path. Covers the "click last point twice", "click start point to
-        // close the path", and any other repeat-click cases.
+        // Test the raw click against existing waypoints *before* snapping.
+        // Snapping projects the cursor onto an axis from `last`, which means
+        // clicks on off-axis waypoints (e.g. the start of an L-shaped path)
+        // would otherwise miss the "click existing to commit" path.
         const hitsExisting = pathDraft.points.some(
-          ([px, py]) => px === snapped[0] && py === snapped[1],
+          ([px, py]) => px === x && py === y,
         );
         if (hitsExisting) {
           if (pathDraft.points.length >= 2) commitPathDraft();
           else setPathDraft(null);
           return;
         }
+        // New waypoint — snap axis-aligned to the last committed one.
+        const last = pathDraft.points[pathDraft.points.length - 1];
+        const snapped = snapAxisAligned(last, [x, y]);
+        if (snapped[0] === last[0] && snapped[1] === last[1]) return;
         setPathDraft({
           points: [...pathDraft.points, snapped],
           cursor: snapped,
@@ -800,8 +803,7 @@ export function Editor({
     }
     if (drag) {
       const { x, y } = cellFromEvent(e);
-      if (x === drag.x1 || y === drag.y1) setDrag({ ...drag, x1: x, y1: y });
-      else setDrag({ ...drag, x1: x, y1: y });
+      if (x !== drag.x1 || y !== drag.y1) setDrag({ ...drag, x1: x, y1: y });
       return;
     }
     if (wallDraft) {

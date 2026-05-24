@@ -11,7 +11,6 @@ export type Audience = "shared" | "player" | "gm";
 
 export type Layer = {
   id: string;
-  style?: object;
   carves: Carve[];
   walls?: Wall[];
   doors?: Door[];
@@ -295,11 +294,23 @@ function addToLayer(map: Map, layerId: string, fn: (l: Layer) => Layer): Map {
   let idx = map.layers.findIndex((l) => l.id === layerId);
   let layers = map.layers;
   if (idx < 0) {
-    // Lazily create the layer with its canonical audience.
+    // Lazily create the layer with its canonical audience. Seed every
+    // entity-array slot so the YAML round-trip matches what new_map writes
+    // (Rust's #[serde(default)] tolerates omissions on load, but we don't
+    // want freshly-created layers to drift).
     const audience = (LAYER_DEFAULT_AUDIENCE as Record<string, Audience>)[layerId] ?? "shared";
     layers = [
       ...layers,
-      { id: layerId, carves: [], walls: [], objects: [], audience },
+      {
+        id: layerId,
+        carves: [],
+        walls: [],
+        doors: [],
+        stairs: [],
+        objects: [],
+        notes: [],
+        audience,
+      },
     ];
     idx = layers.length - 1;
   }
