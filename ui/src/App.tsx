@@ -155,8 +155,19 @@ export function App() {
       defaultPath: "map.png",
     });
     if (!picked) return;
+    // Export both views as a pair so the GM and players each get a copy.
+    // Insert `-player`/`-gm` before the extension; if the path has no
+    // extension we just append the suffix.
+    const dot = picked.lastIndexOf(".");
+    const slash = Math.max(picked.lastIndexOf("/"), picked.lastIndexOf("\\"));
+    const [prefix, ext] = dot > slash
+      ? [picked.slice(0, dot), picked.slice(dot)]
+      : [picked, ""];
     try {
-      await exportImage(map, picked, { view });
+      await Promise.all([
+        exportImage(map, `${prefix}-player${ext}`, { view: "player" }),
+        exportImage(map, `${prefix}-gm${ext}`, { view: "gm" }),
+      ]);
     } catch (e) {
       setError(String(e));
     }
