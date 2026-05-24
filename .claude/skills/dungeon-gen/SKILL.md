@@ -111,9 +111,13 @@ Layout guidelines:
   - `treasure` → `column` or `altar`
   - `empty` → optionally `rubble` or nothing
   - `is_trapped` → add `pit-trap` on the **gm** layer
-- **Notes** on the gm layer, max ~12 chars to fit one cell (e.g.
-  `"guard post"`, `"sarcophagus"`, `"pit"`). The audience filter hides them
-  in player exports automatically.
+- **Label every room with its number.** Add one gm-layer note per room whose
+  `text` is the room's topology id (`"1"`, `"12"`, `"24"`), placed in the
+  room's top-left interior cell so it doesn't sit on a centered object. The
+  number is the label — it keys to the room descriptions in the handoff and
+  reads cleanly at one cell; don't try to cram a room name in. (An extra
+  one-word hazard note like `"pit"` next to a trap is fine.) The gm audience
+  hides all of these from player exports automatically.
 - **Entrances** can be marked with a path carve that runs off the room into
   empty space (a few cells), suggesting "this opens to the outside".
 
@@ -122,10 +126,16 @@ Layout guidelines:
 Save the YAML to `/tmp/dungeon.yaml`, then:
 
 ```bash
-cargo run -p cartographer-cli -- render /tmp/dungeon.yaml -o /tmp/dungeon.png --view gm
+cargo run -p cartographer-cli -- render /tmp/dungeon.yaml -o /tmp/dungeon.png
 ```
 
-(Add `--view player` separately to also check the player-facing version.)
+The default render is the GM view. Add `--player` to check the player-facing
+version (hides gm-only layers, swaps secret doors to plain):
+
+```bash
+cargo run -p cartographer-cli -- render /tmp/dungeon.yaml -o /tmp/dungeon-player.png --player
+```
+
 First build on a fresh branch may take ~2 min; subsequent renders are <1s.
 
 ## Step 5 — Inspect and iterate
@@ -155,14 +165,24 @@ walls of text, just enough that the user can follow.
 ## Step 6 — Hand off
 
 Save the final YAML to `examples/<descriptive-kebab-name>.yaml` (e.g.
-`examples/tomb-bandit-hideout.yaml`). Render both GM and Player exports
+`examples/tomb-bandit-hideout.yaml`). Render both GM and player exports
 alongside:
 
 ```bash
-cargo run -p cartographer-cli -- render examples/<name>.yaml -o examples/<name>-gm.png --view gm
-cargo run -p cartographer-cli -- render examples/<name>.yaml -o examples/<name>-player.png --view player
+cargo run -p cartographer-cli -- render examples/<name>.yaml -o examples/<name>-gm.png
+cargo run -p cartographer-cli -- render examples/<name>.yaml -o examples/<name>-player.png --player
 ```
 
-Report to the user: room count, wing count, a few notable rooms with their
-flavor (e.g. "r4: ritual circle, r7: looted reliquary now sleeping
-quarters"), and the file paths.
+Also write a **room key** to `examples/<name>-key.md` — a numbered list, one
+line per room, matching the numbers labeled on the map:
+
+```markdown
+# <Title> — room key
+
+1. **Captain's den** (monster+treasure) — bandit captain's quarters over the old warded study.
+2. **Muster hall** (empty) — cultists gather here before rites.
+...
+```
+
+Report to the user: room count, wing count, a few notable rooms, and the
+file paths (yaml, gm png, player png, key md).

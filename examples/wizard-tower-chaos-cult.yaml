@@ -1,0 +1,164 @@
+version: 1
+grid: { cell_size: 50, ft_per_cell: 5 }
+
+# Wizard tower, now a chaos cult lair. 24 rooms / 4 wings.
+# Wing 1 (entry, left): old public floor — gate shrine, muster hall.
+# Wing 2 (center): laboratory — grand ritual crossroads (r10, 5-way hub).
+# Wing 3 (upper right): library + observatory — defaced archive, star shrine.
+# Wing 4 (lower): wizard's deep sanctum — chaos high priest's throne.
+
+layers:
+  - id: terrain
+    audience: shared
+    carves:
+      # Wing 1 — entry
+      - { id: r6,  rect: [4, 22, 8, 8] }    # entrance: gate shrine
+      - { id: r2,  rect: [18, 22, 7, 7] }   # muster hall (hub)
+      - { id: r1,  rect: [19, 8, 5, 5] }    # captain's den
+      - { id: r3,  rect: [18, 36, 5, 5] }   # storeroom
+      - { id: r4,  rect: [30, 38, 5, 5] }   # warded vault (trapped)
+      - { id: r5,  rect: [31, 22, 5, 6] }   # beast pen
+      # Wing 2 — laboratory
+      - { id: r10, rect: [50, 26, 9, 9] }   # grand lab / ritual crossroads (hub)
+      - { id: r8,  rect: [54, 10, 6, 6] }   # alchemy vault (trapped, hub)
+      - { id: r7,  rect: [42, 8, 5, 5] }    # initiate cells
+      - { id: r9,  rect: [52, 18, 5, 5] }   # warp horror
+      - { id: r11, rect: [64, 28, 6, 6] }   # scrying font
+      - { id: r12, rect: [66, 12, 6, 6] }   # lieutenant's hoard
+      # Wing 3 — library + observatory
+      - { id: r14, rect: [82, 14, 6, 6] }   # scriptorium (hub)
+      - { id: r13, rect: [82, 4, 5, 5] }    # defaced archive
+      - { id: r15, rect: [92, 13, 5, 5] }   # tome vault (secret)
+      - { id: r16, rect: [82, 28, 6, 6] }   # star shrine (hub)
+      - { id: r17, rect: [92, 29, 4, 4] }   # oubliette (trapped)
+      - { id: r18, rect: [70, 40, 7, 7] }   # summoning circle
+      # Wing 4 — deep sanctum
+      - { id: r21, rect: [48, 52, 8, 8] }   # high priest's throne (hub)
+      - { id: r19, rect: [40, 50, 4, 4] }   # antechamber (trapped, secret)
+      - { id: r20, rect: [62, 44, 5, 5] }   # chaos guardian
+      - { id: r22, rect: [60, 54, 6, 6] }   # war-chest
+      - { id: r23, rect: [49, 64, 4, 4] }   # meditation cell
+      - { id: r24, rect: [40, 58, 5, 5] }   # relic vault
+      # Corridors (long halls width 2, others width 1)
+      - { id: k1,  path: [[21,13],[21,22]], width: 2 }
+      - { id: k2,  path: [[20,29],[20,36]], width: 1 }
+      - { id: k3,  path: [[23,39],[30,39]], width: 1 }
+      - { id: k4,  path: [[25,25],[31,25]], width: 2 }
+      - { id: k5,  path: [[12,25],[18,25]], width: 2 }
+      - { id: k6,  path: [[33,28],[33,38]], width: 1 }
+      - { id: k7,  path: [[8,22],[8,3],[44,3],[44,8]], width: 2 }
+      - { id: k8,  path: [[36,25],[43,25],[43,30],[50,30]], width: 1 }
+      - { id: k9,  path: [[47,11],[54,11]], width: 2 }
+      - { id: k10, path: [[55,16],[55,18]], width: 1 }
+      - { id: k11, path: [[54,23],[54,26]], width: 1 }
+      - { id: k12, path: [[60,15],[65,15],[65,28]], width: 1 }
+      - { id: k13, path: [[60,14],[66,14]], width: 1 }
+      - { id: k14, path: [[59,30],[64,30]], width: 2 }
+      - { id: k15, path: [[57,35],[57,43],[70,43]], width: 1 }
+      - { id: k16, path: [[72,15],[82,15]], width: 2 }
+      - { id: k17, path: [[84,9],[84,14]], width: 1 }
+      - { id: k18, path: [[88,16],[92,16]], width: 1 }
+      - { id: k19, path: [[82,6],[80,6],[80,31],[82,31]], width: 1 }
+      - { id: k20, path: [[85,20],[85,28]], width: 1 }
+      - { id: k21, path: [[88,31],[92,31]], width: 1 }
+      - { id: k22, path: [[83,34],[83,43],[77,43]], width: 2 }
+      - { id: k23, path: [[44,51],[64,51],[64,49]], width: 1 }
+      - { id: k24, path: [[64,49],[64,54]], width: 1 }
+      - { id: k25, path: [[44,53],[48,53]], width: 1 }
+      - { id: k26, path: [[56,56],[60,56]], width: 1 }
+      - { id: k27, path: [[51,60],[51,64]], width: 1 }
+      - { id: k28, path: [[49,65],[47,65],[47,61],[45,61]], width: 1 }
+      - { id: k29, path: [[66,15],[62,15],[62,44]], width: 1 }
+      - { id: k30, path: [[50,33],[47,33],[47,60],[45,60]], width: 1 }
+
+  - id: object
+    audience: shared
+    doors:
+      - { id: d_2_3,   segment: [[20,36],[21,36]] }
+      - { id: d_3_4,   segment: [[30,39],[30,40]], kind: locked-door }
+      - { id: d_4_5,   segment: [[33,38],[34,38]] }
+      - { id: d_8_9,   segment: [[55,18],[56,18]], kind: locked-door }
+      - { id: d_9_10,  segment: [[54,26],[55,26]] }
+      - { id: d_8_11,  segment: [[65,28],[66,28]] }
+      - { id: d_8_12,  segment: [[66,14],[66,15]] }
+      - { id: d_5_10,  segment: [[50,30],[50,31]], kind: locked-door }
+      - { id: d_13_14, segment: [[84,14],[85,14]] }
+      - { id: d_13_16, segment: [[82,31],[82,32]] }
+      - { id: d_14_16, segment: [[85,28],[86,28]] }
+      - { id: d_16_17, segment: [[92,31],[92,32]], kind: locked-door }
+      - { id: d_19_20, segment: [[64,49],[65,49]] }
+      - { id: d_20_22, segment: [[64,54],[65,54]] }
+      - { id: d_21_22, segment: [[60,56],[60,57]] }
+      - { id: d_21_23, segment: [[51,64],[52,64]] }
+      - { id: d_23_24, segment: [[45,61],[45,62]] }
+      - { id: d_12_20, segment: [[62,44],[63,44]] }
+      - { id: d_10_24, segment: [[45,60],[45,61]], kind: locked-door }
+    stairs:
+      # In the summoning circle: a descent to the tower's old sublevel.
+      - { id: s1, anchors: [[71,41],[73,41],[72,45]] }
+    objects:
+      - { id: o1,  type: throne,    at: [21, 10], facing: s }   # r1 captain
+      - { id: o3,  type: rubble,    at: [20, 38], facing: n }   # r3 storeroom
+      - { id: o4,  type: altar,     at: [32, 40], facing: n }   # r4 relic
+      - { id: o5a, type: fireplace, at: [32, 24], facing: n }   # r5 beast pen
+      - { id: o5b, type: rubble,    at: [34, 26], facing: n }
+      - { id: o6,  type: altar,     at: [7, 25],  facing: e }   # r6 gate shrine
+      - { id: o8,  type: column,    at: [56, 12], facing: n }   # r8 alchemy
+      - { id: o9,  type: rubble,    at: [54, 20], facing: n }   # r9 warp horror
+      - { id: o10a,type: fountain,  at: [54, 30], facing: n }   # r10 grand lab
+      - { id: o10b,type: column,    at: [51, 27], facing: n }
+      - { id: o10c,type: column,    at: [57, 27], facing: n }
+      - { id: o11, type: fountain,  at: [66, 30], facing: n }   # r11 scrying font
+      - { id: o12, type: throne,    at: [68, 14], facing: s }   # r12 lieutenant
+      - { id: o13, type: column,    at: [84, 6],  facing: n }   # r13 archive
+      - { id: o15, type: altar,     at: [94, 15], facing: n }   # r15 tome vault
+      - { id: o16, type: statue,    at: [84, 30], facing: s }   # r16 star shrine
+      - { id: o18a,type: altar,     at: [73, 42], facing: s }   # r18 summon circle
+      - { id: o18b,type: column,    at: [71, 45], facing: n }
+      - { id: o18c,type: column,    at: [75, 45], facing: n }
+      - { id: o20, type: statue,    at: [64, 46], facing: s }   # r20 guardian
+      - { id: o21, type: throne,    at: [52, 55], facing: s }   # r21 high priest
+      - { id: o22, type: altar,     at: [62, 56], facing: n }   # r22 war-chest
+      - { id: o24, type: altar,     at: [42, 60], facing: n }   # r24 relic vault
+
+  - id: player
+    audience: player
+    doors:
+      - { id: d_14_15, segment: [[92,16],[92,17]], kind: secret-door }
+      - { id: d_10_18, segment: [[70,43],[70,44]], kind: secret-door }
+      - { id: d_19_21, segment: [[48,53],[48,54]], kind: secret-door }
+
+  - id: gm
+    audience: gm
+    objects:
+      - { id: t4,  type: pit-trap, at: [33, 41], facing: n }   # r4
+      - { id: t8,  type: pit-trap, at: [57, 13], facing: n }   # r8
+      - { id: t17, type: pit-trap, at: [93, 30], facing: n }   # r17
+      - { id: t19, type: pit-trap, at: [41, 51], facing: n }   # r19
+    notes:
+      # Room numbers (top-left interior cell of each room), keyed to
+      # wizard-tower-chaos-cult-key.md.
+      - { id: n1,  at: [19, 8],  text: "1" }
+      - { id: n2,  at: [18, 22], text: "2" }
+      - { id: n3,  at: [18, 36], text: "3" }
+      - { id: n4,  at: [30, 38], text: "4" }
+      - { id: n5,  at: [31, 22], text: "5" }
+      - { id: n6,  at: [4, 22],  text: "6" }
+      - { id: n7,  at: [42, 8],  text: "7" }
+      - { id: n8,  at: [54, 10], text: "8" }
+      - { id: n9,  at: [52, 18], text: "9" }
+      - { id: n10, at: [50, 26], text: "10" }
+      - { id: n11, at: [64, 28], text: "11" }
+      - { id: n12, at: [66, 12], text: "12" }
+      - { id: n13, at: [82, 4],  text: "13" }
+      - { id: n14, at: [82, 14], text: "14" }
+      - { id: n15, at: [92, 13], text: "15" }
+      - { id: n16, at: [82, 28], text: "16" }
+      - { id: n17, at: [92, 29], text: "17" }
+      - { id: n18, at: [70, 40], text: "18" }
+      - { id: n19, at: [40, 50], text: "19" }
+      - { id: n20, at: [62, 44], text: "20" }
+      - { id: n21, at: [48, 52], text: "21" }
+      - { id: n22, at: [60, 54], text: "22" }
+      - { id: n23, at: [49, 64], text: "23" }
+      - { id: n24, at: [40, 58], text: "24" }
