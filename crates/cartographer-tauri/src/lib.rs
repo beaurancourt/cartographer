@@ -1,4 +1,4 @@
-use cartographer_core::model::{Audience, Grid, Layer, LayerStyle, View};
+use cartographer_core::model::{Audience, Grid, Layer, View};
 use cartographer_core::{ImageFormat, Map, RenderOptions, load_yaml, render_image, render_svg, validate};
 use std::path::PathBuf;
 
@@ -61,7 +61,6 @@ fn new_map() -> Map {
     fn layer(id: &str, audience: Audience) -> Layer {
         Layer {
             id: id.into(),
-            style: LayerStyle::default(),
             carves: vec![],
             walls: vec![],
             doors: vec![],

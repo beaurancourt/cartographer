@@ -42,8 +42,6 @@ impl Default for Grid {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Layer {
     pub id: String,
-    #[serde(default)]
-    pub style: LayerStyle,
     /// Carve-outs that make up the floor. Each carve is either a `rect`
     /// (rectangular room) or a `path` + `width` (axis-aligned strip). The
     /// final floor is the union of every carve in the layer.
@@ -190,30 +188,6 @@ pub struct PathCarve {
 
 fn default_path_width() -> C { C::cells(1) }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-pub struct LayerStyle {
-    #[serde(default)]
-    pub wall: WallStyle,
-    #[serde(default)]
-    pub floor: FloorStyle,
-}
-
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum WallStyle {
-    #[default]
-    Solid,
-}
-
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum FloorStyle {
-    #[default]
-    Hatched,
-    Solid,
-    Dotted,
-}
-
 /// A placed symbol/object — door, trap, stairs, altar, etc. The `kind`
 /// references a symbol registered in [`crate::symbols`].
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -225,7 +199,9 @@ pub struct MapObject {
     /// Cell coordinate of the cell the object occupies (its symbol is drawn
     /// centered in this cell).
     pub at: [C; 2],
-    /// Orientation. Doors typically use `ew`/`ns`; stairs use `n`/`s`/`e`/`w`.
+    /// Orientation. Objects use one of the 8 compass directions
+    /// (`n`/`ne`/`e`/`se`/`s`/`sw`/`w`/`nw`); the `ew`/`ns` variants exist
+    /// only as legacy aliases for the deprecated object-style doors.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub facing: Option<Facing>,
 }

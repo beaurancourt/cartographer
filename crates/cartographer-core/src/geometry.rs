@@ -149,7 +149,6 @@ mod tests {
     fn layer(carves: Vec<Carve>, objects: Vec<MapObject>) -> Layer {
         Layer {
             id: "main".into(),
-            style: Default::default(),
             carves,
             walls: vec![],
             doors: vec![],

@@ -4,7 +4,7 @@ pub mod raster;
 
 use crate::geometry;
 use crate::model::{
-    Door, DoorKind, FloorStyle, Layer, Map, MapObject, Stairs, View,
+    Door, DoorKind, Layer, Map, MapObject, Stairs, View,
 };
 use crate::symbols;
 use geo::MultiPolygon;
@@ -118,15 +118,6 @@ fn render_layer(s: &mut String, layer: &Layer, cell_px: f64, theme: &Theme, opts
             theme.floor
         );
 
-        if matches!(layer.style.floor, FloorStyle::Hatched) && theme.hatch.is_some() {
-            let clip_id = format!("clip-{}", layer.id);
-            let _ = write!(
-                s,
-                r#"<clipPath id="{clip_id}"><path d="{floor_d}" fill-rule="evenodd"/></clipPath>"#
-            );
-            write_hatch(s, &floor, cell_px, &clip_id, theme.hatch.unwrap());
-        }
-
         if opts.show_grid {
             let clip_id = format!("grid-clip-{}", layer.id);
             let _ = write!(
@@ -134,14 +125,6 @@ fn render_layer(s: &mut String, layer: &Layer, cell_px: f64, theme: &Theme, opts
                 r#"<clipPath id="{clip_id}"><path d="{floor_d}" fill-rule="evenodd"/></clipPath>"#
             );
             write_grid(s, &floor, cell_px, &clip_id, theme.grid, theme.grid_opacity);
-        }
-
-        if let Some(stroke_color) = theme.wall_stroke {
-            let _ = write!(
-                s,
-                r#"<path d="{floor_d}" fill="none" stroke="{stroke_color}" stroke-width="{:.2}" stroke-linejoin="miter" fill-rule="evenodd"/>"#,
-                cell_px * theme.wall_stroke_width
-            );
         }
     }
 
@@ -408,31 +391,6 @@ fn write_grid(s: &mut String, floor: &MultiPolygon<f64>, cell_px: f64, clip_id: 
     s.push_str("</g>");
 }
 
-fn write_hatch(s: &mut String, floor: &MultiPolygon<f64>, cell_px: f64, clip_id: &str, color: &str) {
-    let Some((min_x, min_y, max_x, max_y)) = multipolygon_bbox(floor) else { return };
-    let _ = write!(
-        s,
-        r#"<g clip-path="url(#{clip_id})" stroke="{color}" stroke-width="{:.2}" opacity="0.18">"#,
-        cell_px * 0.03
-    );
-    let step = cell_px * 0.25;
-    let x0 = min_x * cell_px;
-    let y0 = min_y * cell_px;
-    let x1 = max_x * cell_px;
-    let y1 = max_y * cell_px;
-    let mut k = (x0 + y0).floor();
-    let k_end = (x1 + y1).ceil();
-    while k <= k_end {
-        let _ = write!(
-            s,
-            r#"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}"/>"#,
-            k - y0, y0, k - y1, y1
-        );
-        k += step;
-    }
-    s.push_str("</g>");
-}
-
 fn multipolygon_bbox(mp: &MultiPolygon<f64>) -> Option<(f64, f64, f64, f64)> {
     let mut min_x = f64::INFINITY;
     let mut min_y = f64::INFINITY;
@@ -484,16 +442,10 @@ fn xml_escape(s: &str) -> String {
 struct Theme {
     background: &'static str,
     floor: &'static str,
-    /// If `Some`, the floor outline is stroked in this color. If `None`, walls
-    /// are implicit — the contrast between `background` and `floor` reads as
-    /// the wall (Arden Vul / OSR VTT-black style).
-    wall_stroke: Option<&'static str>,
-    wall_stroke_width: f64,
     /// Color for explicit `Wall` segments drawn over the floor.
     interior_wall: &'static str,
     grid: &'static str,
     grid_opacity: f32,
-    hatch: Option<&'static str>,
     note_color: &'static str,
 }
 
@@ -501,12 +453,9 @@ fn ink_theme() -> Theme {
     Theme {
         background: "#000000",
         floor: "#ffffff",
-        wall_stroke: None,
-        wall_stroke_width: 0.0,
         interior_wall: "#000000",
         grid: "#000000",
         grid_opacity: 0.55,
-        hatch: None,
         note_color: "#000000",
     }
 }

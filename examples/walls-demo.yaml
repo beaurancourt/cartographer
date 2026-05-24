@@ -2,8 +2,6 @@ version: 1
 grid:
   cell_size: 50
   ft_per_cell: 5
-background:
-  style: ink
 
 # Iterating toward the reference. Changes from last pass:
 #   - Hall reduced from 3 cells (hall_a + gap + hall_b) to 1 cell — just
