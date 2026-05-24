@@ -705,10 +705,15 @@ export function Editor({
         // Snap the new point axis-aligned with the previous one.
         const last = pathDraft.points[pathDraft.points.length - 1];
         const snapped = snapAxisAligned(last, [x, y]);
-        if (snapped[0] === last[0] && snapped[1] === last[1]) return;
-        // Double-click on the same point ends the path.
-        if (e.detail === 2 && pathDraft.points.length >= 2) {
-          commitPathDraft();
+        // Clicking back onto a cell that already has a point commits the
+        // path. Covers the "click last point twice", "click start point to
+        // close the path", and any other repeat-click cases.
+        const hitsExisting = pathDraft.points.some(
+          ([px, py]) => px === snapped[0] && py === snapped[1],
+        );
+        if (hitsExisting) {
+          if (pathDraft.points.length >= 2) commitPathDraft();
+          else setPathDraft(null);
           return;
         }
         setPathDraft({
