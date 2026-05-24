@@ -60,6 +60,21 @@ export function App() {
         return;
       }
 
+      // Snap precision: Up steps to a coarser snap (toward whole cells),
+      // Down steps finer (toward 1/12). Matches the order shown in the
+      // top-bar snap picker.
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        const idx = SNAP_OPTIONS.findIndex((o) => o.value === snap);
+        if (idx >= 0) {
+          const next = e.key === "ArrowUp"
+            ? Math.max(0, idx - 1)
+            : Math.min(SNAP_OPTIONS.length - 1, idx + 1);
+          if (next !== idx) setSnap(SNAP_OPTIONS[next].value);
+        }
+        e.preventDefault();
+        return;
+      }
+
       switch (e.key.toLowerCase()) {
         case "r": setTool("rect"); break;
         case "w": setTool("wall"); break;
@@ -78,7 +93,7 @@ export function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo]);
+  }, [undo, redo, snap]);
 
   const handleNew = useCallback(async () => {
     setError(null);
