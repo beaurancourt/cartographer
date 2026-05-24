@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import type { Selection } from "./Editor";
 import {
   findEntityLayer,
@@ -38,6 +39,18 @@ const FACING_LABEL: Record<string, string> = {
 };
 
 export function Inspector({ map, setMap, selection, setSelection }: Props) {
+  // Explicit focus management for the note text input. autoFocus is unreliable
+  // here because the editor wrapper div (tabIndex=0) grabs focus on the same
+  // pointerdown that places the note — useLayoutEffect runs after React's
+  // commit and reliably wins the focus race.
+  const noteInputRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (selection?.kind !== "note") return;
+    const input = noteInputRef.current;
+    if (!input) return;
+    if (input.value === "") input.focus();
+  }, [selection?.id, selection?.kind]);
+
   if (!selection) {
     return (
       <div className="inspector empty-inspector">
@@ -99,19 +112,12 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
         </div>
         <div className="field">
           <label>text</label>
-          {/* key={note.id} forces React to remount the input on each fresh
-              note selection so `autoFocus` can re-fire — without it,
-              placing a new note via the tool wouldn't shift typing focus
-              to the input. autoFocus is gated on empty text so re-
-              selecting an already-written note doesn't steal focus from
-              wherever the user was. */}
           <input
-            key={note.id}
+            ref={noteInputRef}
             type="text"
             className="text-input"
             value={note.text}
             onChange={(e) => setMap(updateNote(map, note.id, { text: e.target.value }))}
-            autoFocus={note.text === ""}
           />
         </div>
         {layerPicker()}
