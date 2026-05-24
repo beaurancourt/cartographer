@@ -147,7 +147,30 @@ export function Inspector({ map, setMap, selection, setSelection }: Props) {
 
   if (selection.kind === "carve") {
     const found = layer?.carves.find((c) => c.id === selection.id);
-    if (!found || !isRectCarve(found)) return null;
+    if (!found) return null;
+    if (!isRectCarve(found)) {
+      // Path carve — no shape editor yet, but show id / waypoint count
+      // and let the user move it between layers or delete it.
+      const path = found;
+      return (
+        <div className="inspector">
+          <h3>Carve · path</h3>
+          <Field label="id" value={path.id} />
+          <Field label="points" value={String(path.path.length)} />
+          <Field label="width" value={String(path.width)} />
+          {layerPicker()}
+          <button
+            className="danger"
+            onClick={() => {
+              setMap(removeCarve(map, path.id));
+              setSelection(null);
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      );
+    }
     const carve = found;
     const [x, y, w, h] = carve.rect;
     function set(idx: 0 | 1 | 2 | 3, n: number) {

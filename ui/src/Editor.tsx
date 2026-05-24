@@ -569,6 +569,32 @@ export function Editor({
           if (x >= cx && x < cx + cw && y >= cy && y < cy + ch) {
             return { kind: "carve", id: c.id };
           }
+        } else {
+          // Path carve: each consecutive pair of waypoints forms an
+          // axis-aligned strip of `width` cells. Mirror Rust's
+          // segment_bbox so editor hit-testing matches what's drawn.
+          const w = c.width;
+          for (let i = 1; i < c.path.length; i++) {
+            const [ax, ay] = c.path[i - 1];
+            const [bx, by] = c.path[i];
+            let rx: number, ry: number, rw: number, rh: number;
+            if (ay === by) {
+              rx = Math.min(ax, bx);
+              ry = ay;
+              rw = Math.abs(bx - ax) + 1;
+              rh = w;
+            } else if (ax === bx) {
+              rx = ax;
+              ry = Math.min(ay, by);
+              rw = w;
+              rh = Math.abs(by - ay) + 1;
+            } else {
+              continue;
+            }
+            if (x >= rx && x < rx + rw && y >= ry && y < ry + rh) {
+              return { kind: "carve", id: c.id };
+            }
+          }
         }
       }
     }
@@ -974,6 +1000,36 @@ export function Editor({
       }
       if (selection.kind === "carve") {
         const c = layer.carves.find((c) => c.id === selection.id);
+        if (c && !isRectCarve(c)) {
+          // Path carve: outline the union of its segment rects with a
+          // single bbox. Mirrors Rust's segment_bbox for each window.
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (let i = 1; i < c.path.length; i++) {
+            const [ax, ay] = c.path[i - 1];
+            const [bx, by] = c.path[i];
+            let rx: number, ry: number, rw: number, rh: number;
+            if (ay === by) {
+              rx = Math.min(ax, bx); ry = ay;
+              rw = Math.abs(bx - ax) + 1; rh = c.width;
+            } else if (ax === bx) {
+              rx = ax; ry = Math.min(ay, by);
+              rw = c.width; rh = Math.abs(by - ay) + 1;
+            } else {
+              continue;
+            }
+            if (rx < minX) minX = rx;
+            if (ry < minY) minY = ry;
+            if (rx + rw > maxX) maxX = rx + rw;
+            if (ry + rh > maxY) maxY = ry + rh;
+          }
+          if (minX !== Infinity) {
+            return {
+              kind: "box",
+              x: minX * cell, y: minY * cell,
+              w: (maxX - minX) * cell, h: (maxY - minY) * cell,
+            };
+          }
+        }
         if (c && isRectCarve(c)) {
           const [x, y, w, h] = c.rect;
           return { kind: "box", x: x * cell, y: y * cell, w: w * cell, h: h * cell };
