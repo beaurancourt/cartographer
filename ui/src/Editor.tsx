@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { renderMapSvg } from "./ipc";
 import {
   addCarve,
@@ -28,13 +28,6 @@ import {
   type View,
 } from "./state";
 import { DOOR_TOOLS, OBJECT_TOOLS } from "./state";
-
-// Large drawing area so the canvas feels effectively infinite. World cells
-// span (-HALF, -HALF) to (+HALF, +HALF), and the SVG viewboxes are shifted
-// so cell 0 is genuinely at the center of the drawable region.
-const HALF_CELLS = 100;
-const COLS = HALF_CELLS * 2;
-const ROWS = HALF_CELLS * 2;
 
 export type Tool =
   | "select"
@@ -305,6 +298,19 @@ function pointToSegmentDist(
   return Math.hypot(px - cx, py - cy);
 }
 
+// Strip Rust's outer <svg>…</svg> so the inner content can be injected as a
+// <g> in the editor's own SVG. The inner content's coords are in world-pixel
+// units (world_cell * cell_px), which matches the editor SVG's coordinate
+// system, so entities land at the right place regardless of pan/zoom.
+function stripSvgWrapper(s: string): string {
+  const open = s.match(/<svg\b[^>]*>/);
+  if (!open || open.index === undefined) return "";
+  const openEnd = open.index + open[0].length;
+  const closeStart = s.lastIndexOf("</svg>");
+  if (closeStart < 0 || closeStart < openEnd) return "";
+  return s.slice(openEnd, closeStart);
+}
+
 export function Editor({
   map,
   setMap,
@@ -320,13 +326,9 @@ export function Editor({
 }: Props) {
   const step = 1 / snap;
   const cell = map.grid.cell_size;
-  const W = COLS * cell;
-  const H = ROWS * cell;
-  // Pixel offset between the canvas-content origin (top-left) and world (0,0).
-  const ORIGIN = HALF_CELLS * cell;
-  const VB = `${-ORIGIN} ${-ORIGIN} ${W} ${H}`;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLDivElement | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const rustGroupRef = useRef<SVGGElement | null>(null);
   const [svg, setSvg] = useState<string>("");
   const [drag, setDrag] = useState<Drag | null>(null);
   const [wallDraft, setWallDraft] = useState<WallDraft | null>(null);
@@ -336,16 +338,43 @@ export function Editor({
   const [moveDrag, setMoveDrag] = useState<MoveDrag | null>(null);
   const [resizeDrag, setResizeDrag] = useState<ResizeDrag | null>(null);
 
-  // Pan/zoom transform. Initial pan offsets by -ORIGIN so the canvas-content's
-  // top-left (which corresponds to world cell -HALF_CELLS) lines up at the
-  // viewport top-left — world origin lands roughly visible in the upper-left
-  // quadrant. The user can pan in any direction from there.
+  // Pan/zoom — drives the SVG viewBox directly, so the canvas is truly
+  // infinite in every direction. `pan` is the world-pixel coord at the
+  // viewport's top-left corner; `zoom` is the visual scale (screen px per
+  // SVG unit). Initial pan offsets so world origin sits a couple cells in
+  // from the top-left, giving the user a few cells of negative space to
+  // pan into without first having to scroll.
   const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: -HALF_CELLS * 50, y: -HALF_CELLS * 50 });
+  const [pan, setPan] = useState<{ x: number; y: number }>({
+    x: -cell * 2,
+    y: -cell * 2,
+  });
   const [panDrag, setPanDrag] = useState<
     { clientX: number; clientY: number; baseX: number; baseY: number } | null
   >(null);
   const [spacePressed, setSpacePressed] = useState(false);
+
+  // Viewport size in CSS pixels — drives viewBox width/height (= vp/zoom).
+  // Tracked via ResizeObserver so the SVG correctly fills the wrapper at all
+  // window sizes.
+  const [vp, setVp] = useState({ w: 1, h: 1 });
+  useLayoutEffect(() => {
+    const wrap = wrapperRef.current;
+    if (!wrap) return;
+    const sync = () => {
+      const r = wrap.getBoundingClientRect();
+      setVp({ w: Math.max(1, r.width), h: Math.max(1, r.height) });
+    };
+    sync();
+    const obs = new ResizeObserver(sync);
+    obs.observe(wrap);
+    return () => obs.disconnect();
+  }, []);
+
+  const vbW = vp.w / zoom;
+  const vbH = vp.h / zoom;
+  const vbX = pan.x;
+  const vbY = pan.y;
 
   // Drop in-progress drafts when the active tool changes.
   useEffect(() => {
@@ -383,43 +412,48 @@ export function Editor({
     if (!wrap) return;
     function onWheel(e: WheelEvent) {
       e.preventDefault();
-      const wrapRect = wrap!.getBoundingClientRect();
-      const mx = e.clientX - wrapRect.left;
-      const my = e.clientY - wrapRect.top;
+      const svgEl = svgRef.current;
+      if (!svgEl) return;
       if (e.ctrlKey || e.metaKey) {
         const factor = Math.exp(-e.deltaY * 0.0035);
-        setZoom((zoomPrev) => {
-          const next = Math.max(0.25, Math.min(4, zoomPrev * factor));
-          setPan((panPrev) => {
-            const svgX = (mx - panPrev.x) / zoomPrev;
-            const svgY = (my - panPrev.y) / zoomPrev;
-            return { x: mx - svgX * next, y: my - svgY * next };
+        const rect = svgEl.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        setZoom((zPrev) => {
+          const newZ = Math.max(0.1, Math.min(8, zPrev * factor));
+          setPan((pPrev) => {
+            // World coord under cursor (before zoom): wx = vbX + screenX/zPrev.
+            // After zoom we want the same screen point to land on the same
+            // world coord: vbX_new = wx - screenX/newZ.
+            const wx = pPrev.x + screenX / zPrev;
+            const wy = pPrev.y + screenY / zPrev;
+            return { x: wx - screenX / newZ, y: wy - screenY / newZ };
           });
-          return next;
+          return newZ;
         });
       } else {
-        setPan((p) => ({ x: p.x - e.deltaX, y: p.y - e.deltaY }));
+        // deltaX/deltaY are screen px; viewBox shifts by delta/zoom (world px).
+        setPan((p) => ({ x: p.x + e.deltaX / zoom, y: p.y + e.deltaY / zoom }));
       }
     }
     wrap.addEventListener("wheel", onWheel, { passive: false });
     return () => wrap.removeEventListener("wheel", onWheel);
-  }, []);
+  }, [zoom]);
 
-  // Live render via Rust on every map change. For a fixed editor canvas we
-  // force the viewBox to [0, 0, W, H] and skip the background so the
-  // editor's own grid shows through the void.
+  // Live render via Rust on every map change. The Rust SVG content is laid
+  // out in world-pixel units (world_cell * cell_px), which matches our SVG's
+  // coordinate system — we strip Rust's outer <svg> wrapper and graft just
+  // the inner content into our scene as a <g>. The editor draws its own
+  // grid, so we tell Rust to skip its grid.
   useEffect(() => {
     let cancel = false;
-    // Hide UI-hidden layers from the live preview by filtering the map
-    // before sending it to Rust. Export uses the full map.
     const visibleMap =
       hiddenLayers.size === 0
         ? map
         : { ...map, layers: map.layers.filter((l) => !hiddenLayers.has(l.id)) };
     renderMapSvg(visibleMap, {
-      viewbox: [-ORIGIN, -ORIGIN, W, H],
       transparentBackground: true,
-      showGrid: true,
+      showGrid: false,
       view,
     })
       .then((s) => {
@@ -431,30 +465,38 @@ export function Editor({
     return () => {
       cancel = true;
     };
-  }, [map, W, H, view, hiddenLayers]);
+  }, [map, view, hiddenLayers]);
 
+  // Inject the Rust SVG's inner content into our <g>. We use innerHTML
+  // because the <g> sits inside an SVG namespace, so the parsed children
+  // are themselves SVG elements (not HTML).
+  useEffect(() => {
+    const g = rustGroupRef.current;
+    if (!g) return;
+    g.innerHTML = stripSvgWrapper(svg);
+  }, [svg]);
+
+  // Convert a pointer event's screen coords into SVG (== world-pixel) coords
+  // by inverting the current SVG screen CTM. This is invariant to pan/zoom
+  // state — no manual math needed.
   function pxFromEvent(e: React.PointerEvent): { px: number; py: number } {
-    // Use the inner content's screen rect — it reflects the pan/zoom
-    // transform so the conversion stays valid under any view state.
-    const inner = contentRef.current;
-    if (!inner) return { px: 0, py: 0 };
-    const rect = inner.getBoundingClientRect();
-    const sx = W / rect.width;
-    const sy = H / rect.height;
-    return {
-      px: (e.clientX - rect.left) * sx,
-      py: (e.clientY - rect.top) * sy,
-    };
+    const svgEl = svgRef.current;
+    if (!svgEl) return { px: 0, py: 0 };
+    const ctm = svgEl.getScreenCTM();
+    if (!ctm) return { px: 0, py: 0 };
+    const pt = svgEl.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const t = pt.matrixTransform(ctm.inverse());
+    return { px: t.x, py: t.y };
   }
 
   // The cursor's "cell" is the top-left of the snap-sized square it's in.
-  // pxFromEvent returns content pixels (0..W); subtract ORIGIN to get world
-  // pixels where (0, 0) is world origin.
   function cellFromEvent(e: React.PointerEvent): { x: number; y: number } {
     const { px, py } = pxFromEvent(e);
     return {
-      x: Math.floor((px - ORIGIN) / cell / step) * step,
-      y: Math.floor((py - ORIGIN) / cell / step) * step,
+      x: Math.floor(px / cell / step) * step,
+      y: Math.floor(py / cell / step) * step,
     };
   }
 
@@ -462,8 +504,8 @@ export function Editor({
   function cornerFromEvent(e: React.PointerEvent): [number, number] {
     const { px, py } = pxFromEvent(e);
     return [
-      Math.round((px - ORIGIN) / cell / step) * step,
-      Math.round((py - ORIGIN) / cell / step) * step,
+      Math.round(px / cell / step) * step,
+      Math.round(py / cell / step) * step,
     ];
   }
 
@@ -530,7 +572,7 @@ export function Editor({
     return null;
   }
 
-  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+  function handlePointerDown(e: React.PointerEvent<SVGSVGElement>) {
     // Pan: middle-mouse OR space+left.
     if (e.button === 1 || (spacePressed && e.button === 0)) {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -689,14 +731,16 @@ export function Editor({
     }
   }
 
-  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+  function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
     // Always report cursor coords for the status bar.
     const cellCoord = cellFromEvent(e);
     onCursorChange([cellCoord.x, cellCoord.y]);
     if (panDrag) {
+      // Drag delta is in screen px; viewBox shifts by delta/zoom in world px.
+      // Drag right → vbX decreases (content appears to follow the cursor).
       setPan({
-        x: panDrag.baseX + (e.clientX - panDrag.clientX),
-        y: panDrag.baseY + (e.clientY - panDrag.clientY),
+        x: panDrag.baseX - (e.clientX - panDrag.clientX) / zoom,
+        y: panDrag.baseY - (e.clientY - panDrag.clientY) / zoom,
       });
       return;
     }
@@ -816,7 +860,7 @@ export function Editor({
     return dx >= dy ? [to[0], from[1]] : [from[0], to[1]];
   }
 
-  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+  function handlePointerUp(e: React.PointerEvent<SVGSVGElement>) {
     if (panDrag) {
       e.currentTarget.releasePointerCapture(e.pointerId);
       setPanDrag(null);
@@ -1042,31 +1086,27 @@ export function Editor({
       className={`editor ${cursorClass}`}
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={() => {
-        setDrag(null);
-        setPanDrag(null);
-        setMoveDrag(null);
-        setResizeDrag(null);
-      }}
-      onPointerLeave={() => onCursorChange(null)}
     >
-      <div
-        ref={contentRef}
-        className="canvas-content"
-        style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          width: W,
-          height: H,
+      {/* Single SVG fills the wrapper; viewBox drives pan/zoom, so the
+          drawable area is genuinely unbounded in every direction. */}
+      <svg
+        ref={svgRef}
+        className="editor-svg"
+        width="100%"
+        height="100%"
+        viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
+        preserveAspectRatio="xMinYMin slice"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={() => {
+          setDrag(null);
+          setPanDrag(null);
+          setMoveDrag(null);
+          setResizeDrag(null);
         }}
+        onPointerLeave={() => onCursorChange(null)}
       >
-      {/* Layer 1: black background + faint void grid via an SVG pattern so
-          we don't allocate one element per gridline. The fill rects start
-          at the viewBox origin (negative) so the pattern covers the whole
-          drawable area, not just the positive quadrant. */}
-      <svg className="layer-bg" width={W} height={H} viewBox={VB}>
         <defs>
           <pattern
             id="editor-grid"
@@ -1084,15 +1124,17 @@ export function Editor({
             />
           </pattern>
         </defs>
-        <rect x={-ORIGIN} y={-ORIGIN} width={W} height={H} fill="#000000" />
-        <rect x={-ORIGIN} y={-ORIGIN} width={W} height={H} fill="url(#editor-grid)" />
-      </svg>
+        {/* Black void + grid fill the visible viewBox — they re-size every
+            render to match pan/zoom, so the grid extends infinitely. */}
+        <rect x={vbX} y={vbY} width={vbW} height={vbH} fill="#000000" />
+        <rect x={vbX} y={vbY} width={vbW} height={vbH} fill="url(#editor-grid)" />
 
-      {/* Layer 2: Rust render (transparent background, viewbox locked to editor canvas). */}
-      <div className="layer-render" dangerouslySetInnerHTML={{ __html: svg }} />
+        {/* Rust-rendered map content. innerHTML is set by an effect; the
+            inner SVG nodes use world-pixel coords that align with this
+            outer SVG's coord system. */}
+        <g ref={rustGroupRef} />
 
-      {/* Layer 3: drag preview + selection overlay. */}
-      <svg className="layer-overlay" width={W} height={H} viewBox={VB}>
+        {/* Overlay: drag preview + selection. */}
         {dragPreview && (
           <rect
             x={dragPreview.x}
@@ -1101,7 +1143,7 @@ export function Editor({
             height={dragPreview.h}
             fill="rgba(201, 168, 106, 0.18)"
             stroke="#c9a86a"
-            strokeWidth={2}
+            strokeWidth={2 / zoom}
             strokeDasharray="6 4"
           />
         )}
@@ -1113,7 +1155,7 @@ export function Editor({
             height={selectionDraw.h + 2}
             fill="none"
             stroke="#c9a86a"
-            strokeWidth={2}
+            strokeWidth={2 / zoom}
             strokeDasharray="6 4"
           />
         )}
@@ -1124,7 +1166,7 @@ export function Editor({
             x2={selectionDraw.x2}
             y2={selectionDraw.y2}
             stroke="#c9a86a"
-            strokeWidth={6}
+            strokeWidth={6 / zoom}
             strokeOpacity={0.45}
             strokeLinecap="round"
           />
@@ -1204,7 +1246,7 @@ export function Editor({
             x2={selectionDraw.x2}
             y2={selectionDraw.y2}
             stroke="#c9a86a"
-            strokeWidth={6}
+            strokeWidth={6 / zoom}
             strokeOpacity={0.45}
             strokeLinecap="round"
           />
@@ -1214,7 +1256,7 @@ export function Editor({
             points={selectionDraw.pts.map(p => `${p[0]},${p[1]}`).join(" ")}
             fill="rgba(201, 168, 106, 0.18)"
             stroke="#c9a86a"
-            strokeWidth={2}
+            strokeWidth={2 / zoom}
             strokeDasharray="6 4"
           />
         )}
@@ -1230,7 +1272,7 @@ export function Editor({
               strokeDasharray="6 4"
               strokeLinecap="square"
             />
-            <circle cx={wallPreview.x1} cy={wallPreview.y1} r={4} fill="#c9a86a" />
+            <circle cx={wallPreview.x1} cy={wallPreview.y1} r={4 / zoom} fill="#c9a86a" />
           </>
         )}
         {doorPreview && (
@@ -1296,7 +1338,6 @@ export function Editor({
           </g>
         )}
       </svg>
-      </div>
     </div>
   );
 }

@@ -157,21 +157,11 @@ body {
   cursor: grabbing;
 }
 
-.editor .canvas-content {
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform-origin: 0 0;
-}
-
-.editor .layer-bg,
-.editor .layer-render,
-.editor .layer-render > svg,
-.editor .layer-overlay {
+.editor .editor-svg {
   position: absolute;
   inset: 0;
-  pointer-events: none;
   display: block;
+  touch-action: none;
 }
 
 .toolbar .tool {
