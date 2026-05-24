@@ -39,16 +39,27 @@ const FACING_LABEL: Record<string, string> = {
 };
 
 export function Inspector({ map, setMap, selection, setSelection }: Props) {
-  // Explicit focus management for the note text input. autoFocus is unreliable
-  // here because the editor wrapper div (tabIndex=0) grabs focus on the same
-  // pointerdown that places the note — useLayoutEffect runs after React's
-  // commit and reliably wins the focus race.
+  // Explicit focus management for the note text input. autoFocus and
+  // a plain layout-effect focus both lose the race — the editor wrapper
+  // div (tabIndex=0) grabs focus during the same click that places the
+  // note, and the browser appears to re-assert that focus after React's
+  // commit. Deferring past the current task via requestAnimationFrame
+  // gets us cleanly past it.
   const noteInputRef = useRef<HTMLInputElement>(null);
   useLayoutEffect(() => {
     if (selection?.kind !== "note") return;
-    const input = noteInputRef.current;
-    if (!input) return;
-    if (input.value === "") input.focus();
+    const raf = requestAnimationFrame(() => {
+      const input = noteInputRef.current;
+      if (!input) return;
+      if (input.value !== "") return;
+      // Blur whatever currently has focus (likely the editor div) first;
+      // some browsers won't move focus to a different element while a
+      // focusable ancestor is mid-event.
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      input.focus();
+      input.select?.();
+    });
+    return () => cancelAnimationFrame(raf);
   }, [selection?.id, selection?.kind]);
 
   if (!selection) {
