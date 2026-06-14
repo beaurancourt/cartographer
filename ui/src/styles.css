@@ -186,7 +186,7 @@ body {
 
 .main {
   display: grid;
-  grid-template-columns: 56px 1fr 260px;
+  grid-template-columns: 132px 1fr 260px;
   min-height: 0;
   height: 100%;
 }
@@ -325,13 +325,16 @@ body {
   border: 1px solid #00000033;
   border-radius: 4px;
   width: 100%;
-  height: 36px;
   cursor: pointer;
   font: inherit;
+  font-size: 0.8rem;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  white-space: nowrap;
 }
 
 .palette-btn:hover:not(.active) {
@@ -344,16 +347,12 @@ body {
   border-color: transparent;
 }
 
-.palette-glyph {
-  font-size: 1.05rem;
+.palette-label {
   line-height: 1;
 }
 
 .palette-key {
-  position: absolute;
-  bottom: 1px;
-  right: 2px;
-  font-size: 0.55rem;
+  font-size: 0.6rem;
   opacity: 0.55;
   text-transform: uppercase;
   line-height: 1;

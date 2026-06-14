@@ -131,10 +131,10 @@ layers:
   - id: gm
     audience: gm
     objects:
-      - { id: t4,  type: pit-trap, at: [33, 41], facing: n }   # r4
-      - { id: t8,  type: pit-trap, at: [57, 13], facing: n }   # r8
-      - { id: t17, type: pit-trap, at: [93, 30], facing: n }   # r17
-      - { id: t19, type: pit-trap, at: [41, 51], facing: n }   # r19
+      - { id: t4,  type: trap, at: [33, 41], facing: n }   # r4
+      - { id: t8,  type: trap, at: [57, 13], facing: n }   # r8
+      - { id: t17, type: trap, at: [93, 30], facing: n }   # r17
+      - { id: t19, type: trap, at: [41, 51], facing: n }   # r19
     notes:
       # Room numbers (top-left interior cell of each room), keyed to
       # wizard-tower-chaos-cult-key.md.

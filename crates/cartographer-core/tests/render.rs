@@ -1,6 +1,8 @@
 //! Smoke tests for the end-to-end render pipeline on checked-in examples.
 
-use cartographer_core::{ImageFormat, RenderOptions, load_yaml, render_image, render_svg};
+use cartographer_core::{
+    ImageFormat, RenderOptions, load_yaml, render_bundle, render_image, render_svg,
+};
 
 const ONE_ROOM: &str = include_str!("../../../examples/one-room.yaml");
 const SMALL_TOMB: &str = include_str!("../../../examples/small-tomb.yaml");
@@ -21,7 +23,7 @@ fn small_tomb_renders_svg() {
     // 4 rooms unioned with one corridor should produce at least one floor path.
     assert!(svg.matches("<path").count() >= 2);
     // All declared object types should appear somewhere in the SVG body.
-    for tag in &["pit-trap", "altar", "stairs-down", "secret-door"] {
+    for tag in &["trap", "altar", "stairs-down", "secret-door"] {
         // Tags appear via included symbol content (which references rect/text/line
         // primitives, not the tag name itself), so we instead check that the
         // generated <g transform> wrappers for objects are present.
@@ -41,6 +43,31 @@ fn small_tomb_renders_png_and_jpg() {
 
     let jpg = render_image(&svg, ImageFormat::Jpeg).expect("jpg");
     assert!(jpg.starts_with(&[0xff, 0xd8, 0xff]), "JPEG SOI missing");
+}
+
+#[test]
+fn bundle_carries_both_views_with_matching_viewbox() {
+    let map = load_yaml(SMALL_TOMB).expect("parse");
+    let bundle = render_bundle(&map, &RenderOptions::default());
+
+    assert_eq!(bundle.format, "cartographer-views");
+    assert_eq!(bundle.version, 1);
+    assert!(bundle.gm.starts_with("<svg"));
+    assert!(bundle.player.starts_with("<svg"));
+
+    // Both views must share the same viewBox so a consumer can overlay them.
+    let viewbox = |svg: &str| {
+        let start = svg.find("viewBox=\"").expect("viewBox") + "viewBox=\"".len();
+        let end = svg[start..].find('"').expect("viewBox close") + start;
+        svg[start..end].to_string()
+    };
+    assert_eq!(viewbox(&bundle.gm), viewbox(&bundle.player));
+
+    // It serializes to JSON with the documented keys.
+    let json: serde_json::Value = serde_json::to_value(&bundle).expect("serialize");
+    for key in &["format", "version", "grid", "gm", "player"] {
+        assert!(json.get(key).is_some(), "missing key {key}");
+    }
 }
 
 #[test]

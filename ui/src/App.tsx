@@ -83,8 +83,10 @@ export function App() {
         case "d": setTool("door"); break;
         case "s": setTool("secret-door"); break;
         case "l": setTool("locked-door"); break;
+        case "o": setTool("window"); break;
+        case "y": setTool("arrow-slit"); break;
         case "i": setTool("stairs"); break;
-        case "p": setTool("pit-trap"); break;
+        case "p": setTool("trap"); break;
         case "a": setTool("altar"); break;
         case "f": setTool("fountain"); break;
         case "c": setTool("column"); break;
@@ -151,23 +153,28 @@ export function App() {
         { name: "PNG", extensions: ["png"] },
         { name: "JPG", extensions: ["jpg", "jpeg"] },
         { name: "SVG", extensions: ["svg"] },
+        { name: "Both views (JSON bundle)", extensions: ["json"] },
       ],
       defaultPath: "map.png",
     });
     if (!picked) return;
-    // Export both views as a pair so the GM and players each get a copy.
-    // Insert `-player`/`-gm` before the extension; if the path has no
-    // extension we just append the suffix.
     const dot = picked.lastIndexOf(".");
     const slash = Math.max(picked.lastIndexOf("/"), picked.lastIndexOf("\\"));
     const [prefix, ext] = dot > slash
       ? [picked.slice(0, dot), picked.slice(dot)]
       : [picked, ""];
     try {
-      await Promise.all([
-        exportImage(map, `${prefix}-player${ext}`, { view: "player" }),
-        exportImage(map, `${prefix}-gm${ext}`, { view: "gm" }),
-      ]);
+      // A `.json` bundle already carries both views, so it's a single file.
+      // Every other format exports a pair (`-player`/`-gm`) so the GM and
+      // players each get their own copy.
+      if (ext.toLowerCase() === ".json") {
+        await exportImage(map, picked);
+      } else {
+        await Promise.all([
+          exportImage(map, `${prefix}-player${ext}`, { view: "player" }),
+          exportImage(map, `${prefix}-gm${ext}`, { view: "gm" }),
+        ]);
+      }
     } catch (e) {
       setError(String(e));
     }
@@ -224,10 +231,10 @@ export function App() {
         <div className="main">
           {/* Left palette: tools */}
           <div className="palette">
-            <ToolButton current={tool} value="rect" onClick={setTool} hint="R" label="Rectangle">▭</ToolButton>
-            <ToolButton current={tool} value="wall" onClick={setTool} hint="W" label="Wall">━</ToolButton>
-            <ToolButton current={tool} value="path" onClick={setTool} hint="T" label="Path">⌐</ToolButton>
-            <ToolButton current={tool} value="note" onClick={setTool} hint="N" label="Note">¶</ToolButton>
+            <ToolButton current={tool} value="rect" onClick={setTool} hint="R" label="Rectangle" />
+            <ToolButton current={tool} value="wall" onClick={setTool} hint="W" label="Wall" />
+            <ToolButton current={tool} value="path" onClick={setTool} hint="T" label="Path" />
+            <ToolButton current={tool} value="note" onClick={setTool} hint="N" label="Note" />
             <div className="palette-divider" />
             {DOOR_TOOLS.map((t) => (
               <ToolButton
@@ -235,14 +242,12 @@ export function App() {
                 current={tool}
                 value={t.id}
                 onClick={setTool}
-                hint={t.id === "door" ? "D" : t.id === "secret-door" ? "S" : "L"}
+                hint={t.hint}
                 label={t.label}
-              >
-                {t.id === "door" ? "▮" : t.id === "secret-door" ? "S" : "🔒"}
-              </ToolButton>
+              />
             ))}
-            <ToolButton current={tool} value="stairs" onClick={setTool} hint="I" label="Stairs">⛒</ToolButton>
-            <ToolButton current={tool} value="select" onClick={setTool} hint="V" label="Select">⬚</ToolButton>
+            <ToolButton current={tool} value="stairs" onClick={setTool} hint="I" label="Stairs" />
+            <ToolButton current={tool} value="select" onClick={setTool} hint="V" label="Select" />
             <div className="palette-divider" />
             {OBJECT_TOOLS.map((t) => (
               <ToolButton
@@ -252,9 +257,7 @@ export function App() {
                 onClick={setTool}
                 hint={objectHint(t.id)}
                 label={t.label}
-              >
-                {objectGlyph(t.id)}
-              </ToolButton>
+              />
             ))}
           </div>
           <div className="canvas-stack">
@@ -314,29 +317,21 @@ function ToolButton({
   current,
   value,
   onClick,
-  children,
   hint,
   label,
 }: {
   current: Tool;
   value: Tool;
   onClick: (t: Tool) => void;
-  children: React.ReactNode;
   hint?: string;
   label?: string;
 }) {
-  const tooltip = label
-    ? `${label}${hint ? `  (${hint})` : ""}`
-    : hint
-      ? `${value} (${hint})`
-      : value;
   return (
     <button
       className={current === value ? "palette-btn active" : "palette-btn"}
       onClick={() => onClick(value)}
-      title={tooltip}
     >
-      <span className="palette-glyph">{children}</span>
+      <span className="palette-label">{label ?? value}</span>
       {hint && <span className="palette-key">{hint}</span>}
     </button>
   );
@@ -344,7 +339,7 @@ function ToolButton({
 
 function objectHint(id: string): string | undefined {
   switch (id) {
-    case "pit-trap": return "P";
+    case "trap": return "P";
     case "altar": return "A";
     case "fountain": return "F";
     case "column": return "C";
@@ -352,17 +347,3 @@ function objectHint(id: string): string | undefined {
   }
 }
 
-function objectGlyph(id: string): string {
-  switch (id) {
-    case "pit-trap": return "⊠";
-    case "altar": return "▤";
-    case "fountain": return "◎";
-    case "column": return "●";
-    case "fireplace": return "♨";
-    case "statue": return "♟";
-    case "throne": return "♔";
-    case "rubble": return "⁂";
-    case "water": return "≋";
-    default: return "·";
-  }
-}

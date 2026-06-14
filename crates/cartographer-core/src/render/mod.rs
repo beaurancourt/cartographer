@@ -4,10 +4,11 @@ pub mod raster;
 
 use crate::geometry;
 use crate::model::{
-    Door, DoorKind, Layer, Map, MapObject, Stairs, View,
+    Door, DoorKind, Grid, Layer, Map, MapObject, Stairs, View,
 };
 use crate::symbols;
 use geo::MultiPolygon;
+use serde::Serialize;
 use std::fmt::Write as _;
 
 #[derive(Debug, Clone)]
@@ -84,6 +85,41 @@ pub fn render_svg(map: &Map, opts: &RenderOptions) -> String {
 
     s.push_str("</svg>");
     s
+}
+
+/// A single map rendered as both views, ready to serialize as one JSON file.
+///
+/// The two SVGs share an identical viewBox (the bounding box spans every
+/// layer regardless of view — see [`layers_bounds`]), so a consuming program
+/// can overlay or swap between them without any coordinate fix-up.
+#[derive(Debug, Clone, Serialize)]
+pub struct ViewBundle {
+    /// Format tag so a loader can sniff the file: always `"cartographer-views"`.
+    pub format: &'static str,
+    /// Bundle schema version. Currently always 1.
+    pub version: u32,
+    /// Grid metadata copied from the map (cell size, units, ft-per-cell).
+    pub grid: Grid,
+    /// The GM-facing render: every layer, locked doors shown as locked.
+    pub gm: String,
+    /// The player-facing render: gm-only layers hidden, locked doors plain.
+    pub player: String,
+}
+
+/// Render `map` as a [`ViewBundle`] containing both the GM and player SVGs.
+///
+/// `opts.view` is ignored — both views are always produced. All other options
+/// (grid, viewbox, background, padding) apply to both renders.
+pub fn render_bundle(map: &Map, opts: &RenderOptions) -> ViewBundle {
+    let gm = render_svg(map, &RenderOptions { view: View::Gm, ..opts.clone() });
+    let player = render_svg(map, &RenderOptions { view: View::Player, ..opts.clone() });
+    ViewBundle {
+        format: "cartographer-views",
+        version: 1,
+        grid: map.grid.clone(),
+        gm,
+        player,
+    }
 }
 
 fn layers_bounds(map: &Map) -> Option<(f64, f64, f64, f64)> {
@@ -205,6 +241,65 @@ fn write_door(s: &mut String, door: &Door, cell_px: f64, view: View) {
     let mx = (ax + bx) / 2.0;
     let my = (ay + by) / 2.0;
 
+    // Windows and arrow slits are architectural openings, not doors: they
+    // render the same in both views and have their own geometry, so handle
+    // them up front and return before the door-panel base render.
+    match door.kind {
+        DoorKind::Window => {
+            let stroke_w = cell_px * 0.07;
+            // Wall line with a wide, shallow curved bump at the centre. The
+            // bump rises gently to one side; a short post sits on its crown.
+            let half = (len * 0.32).min(cell_px * 0.42);
+            let rise = cell_px * 0.085;
+            let p1 = (mx - ux * half, my - uy * half);
+            let p2 = (mx + ux * half, my + uy * half);
+            // Quadratic control at 2×rise so the curve crowns at `rise`.
+            let cx = mx + nx * rise * 2.0;
+            let cy = my + ny * rise * 2.0;
+            let _ = write!(
+                s,
+                r#"<path d="M {ax:.2} {ay:.2} L {:.2} {:.2} Q {cx:.2} {cy:.2} {:.2} {:.2} L {bx:.2} {by:.2}" fill="none" stroke="{black}" stroke-width="{stroke_w:.2}" stroke-linecap="square" stroke-linejoin="round"/>"#,
+                p1.0, p1.1, p2.0, p2.1
+            );
+            // Short post rising from the crown of the bump.
+            let t0 = (mx + nx * (rise - cell_px * 0.02), my + ny * (rise - cell_px * 0.02));
+            let t1 = (mx + nx * (rise + cell_px * 0.11), my + ny * (rise + cell_px * 0.11));
+            let _ = write!(
+                s,
+                r#"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="{black}" stroke-width="{stroke_w:.2}" stroke-linecap="square"/>"#,
+                t0.0, t0.1, t1.0, t1.1
+            );
+            return;
+        }
+        DoorKind::ArrowSlit => {
+            // Two heavy bars from each anchor toward the centre, tapering to
+            // a narrow slit at a small central gap.
+            let gap = (len * 0.13).min(cell_px * 0.18);
+            let t_out = cell_px * 0.09;
+            let t_in = cell_px * 0.02;
+            let li = (mx - ux * gap, my - uy * gap);
+            let ri = (mx + ux * gap, my + uy * gap);
+            let _ = write!(
+                s,
+                r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="{black}"/>"#,
+                ax + nx * t_out, ay + ny * t_out,
+                li.0 + nx * t_in, li.1 + ny * t_in,
+                li.0 - nx * t_in, li.1 - ny * t_in,
+                ax - nx * t_out, ay - ny * t_out
+            );
+            let _ = write!(
+                s,
+                r#"<polygon points="{:.2},{:.2} {:.2},{:.2} {:.2},{:.2} {:.2},{:.2}" fill="{black}"/>"#,
+                bx + nx * t_out, by + ny * t_out,
+                ri.0 + nx * t_in, ri.1 + ny * t_in,
+                ri.0 - nx * t_in, ri.1 - ny * t_in,
+                bx - nx * t_out, by - ny * t_out
+            );
+            return;
+        }
+        _ => {}
+    }
+
     // In player view, locked- and secret-doors render as plain doors —
     // the lock dot and the S marker are both GM-only information.
     let show_kind = if view == View::Player {
@@ -244,9 +339,10 @@ fn write_door(s: &mut String, door: &Door, cell_px: f64, view: View) {
         pc1.0, pc1.1, pc2.0, pc2.1, pc3.0, pc3.1, pc4.0, pc4.1
     );
 
-    // Kind-specific overlay (only in GM view).
+    // Kind-specific overlay (only in GM view). Window/arrow-slit already
+    // returned above.
     match show_kind {
-        DoorKind::Door => {}
+        DoorKind::Door | DoorKind::Window | DoorKind::ArrowSlit => {}
         DoorKind::LockedDoor => {
             let _ = write!(
                 s,

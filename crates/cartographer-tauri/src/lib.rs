@@ -1,5 +1,7 @@
 use cartographer_core::model::{Audience, Grid, Layer, View};
-use cartographer_core::{ImageFormat, Map, RenderOptions, load_yaml, render_image, render_svg, validate};
+use cartographer_core::{
+    ImageFormat, Map, RenderOptions, load_yaml, render_bundle, render_image, render_svg, validate,
+};
 use std::path::PathBuf;
 
 #[derive(thiserror::Error, Debug)]
@@ -10,7 +12,9 @@ enum CmdError {
     Io(#[from] std::io::Error),
     #[error("yaml: {0}")]
     Yaml(#[from] serde_yaml::Error),
-    #[error("unsupported extension `.{0}` (expected svg, png, jpg)")]
+    #[error("json: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("unsupported extension `.{0}` (expected svg, png, jpg, json)")]
     BadExt(String),
 }
 
@@ -110,6 +114,12 @@ fn export_image(map: Map, path: String, args: Option<ExportArgs>) -> Result<(), 
         view: args.view.unwrap_or(View::Gm),
         ..Default::default()
     };
+    // A `.json` bundle holds both views in one file, so `args.view` is moot.
+    if ext == "json" {
+        let bundle = render_bundle(&map, &opts);
+        std::fs::write(&p, serde_json::to_string_pretty(&bundle)?)?;
+        return Ok(());
+    }
     let svg = render_svg(&map, &opts);
     let bytes = match ext.as_str() {
         "svg" => svg.into_bytes(),

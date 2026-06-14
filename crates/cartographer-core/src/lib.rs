@@ -14,7 +14,7 @@ pub mod validate;
 
 pub use error::{Error, Result};
 pub use model::Map;
-pub use render::{RenderOptions, render_svg};
+pub use render::{RenderOptions, ViewBundle, render_bundle, render_svg};
 pub use render::raster::{ImageFormat, render_image};
 
 /// Load and validate a map from a YAML string.

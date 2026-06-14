@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "cartographer-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "cartographer-core",
@@ -361,7 +361,7 @@ dependencies = [
 
 [[package]]
 name = "cartographer-core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "geo",
  "image",
@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "cartographer-tauri"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "cartographer-core",
  "serde",

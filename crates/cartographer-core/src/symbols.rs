@@ -16,7 +16,7 @@ pub const SYMBOLS: &[(&str, &str)] = &[
     sym!("secret-door"),
     sym!("locked-door"),
     sym!("pit"),
-    sym!("pit-trap"),
+    sym!("trap"),
     sym!("stairs-up"),
     sym!("stairs-down"),
     sym!("column"),

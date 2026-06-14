@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, bail};
 use cartographer_core::model::View;
-use cartographer_core::{ImageFormat, RenderOptions, load_yaml, render_image, render_svg};
+use cartographer_core::{ImageFormat, RenderOptions, load_yaml, render_bundle, render_image, render_svg};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -14,7 +14,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Render a map file to SVG/PNG/JPG (inferred from output extension).
+    /// Render a map file to SVG/PNG/JPG, or a `.json` bundle holding both the
+    /// GM and player SVGs (format inferred from the output extension).
     Render {
         input: PathBuf,
         #[arg(short, long)]
@@ -81,24 +82,28 @@ fn render(
         view: if player { View::Player } else { View::Gm },
         ..Default::default()
     };
-    let svg = render_svg(&map, &opts);
-
     let ext = output
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
     match ext.as_str() {
-        "svg" => std::fs::write(&output, svg)?,
+        // A `.json` bundle carries both views, so the `--player` flag (which
+        // picks a single view) doesn't apply.
+        "json" => {
+            let bundle = render_bundle(&map, &opts);
+            std::fs::write(&output, serde_json::to_string_pretty(&bundle)?)?;
+        }
+        "svg" => std::fs::write(&output, render_svg(&map, &opts))?,
         "png" => {
-            let bytes = render_image(&svg, ImageFormat::Png)?;
+            let bytes = render_image(&render_svg(&map, &opts), ImageFormat::Png)?;
             std::fs::write(&output, bytes)?;
         }
         "jpg" | "jpeg" => {
-            let bytes = render_image(&svg, ImageFormat::Jpeg)?;
+            let bytes = render_image(&render_svg(&map, &opts), ImageFormat::Jpeg)?;
             std::fs::write(&output, bytes)?;
         }
-        other => bail!("unsupported output extension `.{other}` (expected svg, png, jpg)"),
+        other => bail!("unsupported output extension `.{other}` (expected svg, png, jpg, json)"),
     }
     eprintln!("wrote {}", output.display());
     Ok(())

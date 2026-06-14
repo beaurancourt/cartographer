@@ -79,7 +79,7 @@ layers:
   - id: gm
     audience: gm
     objects:
-      - { id: t1, type: pit-trap, at: [x, y], facing: n }
+      - { id: t1, type: trap, at: [x, y], facing: n }
     notes:
       - { id: n1, at: [x, y], text: "guard post" }
 ```
@@ -101,6 +101,11 @@ Layout guidelines:
   `secret door` → `kind: secret-door` on the **player** layer (so it shows as a
   normal door in player view and as "S" in GM view).
   Doors must lie ON a real carve boundary or you'll get floating doors.
+- **Windows & arrow slits** are also anchor segments (same `doors:` list,
+  `kind: window` / `kind: arrow-slit`). Place them on **exterior** walls of
+  a fortress/tower/keep — windows for living/working spaces, arrow slits for
+  defensible walls and guard posts. Both are architectural (shown in both
+  views) and, like doors, must lie on a real carve boundary.
 - **Stairs** only if the brief implies multi-level (mine, tower, dungeon
   with a sublevel). Three anchors: first two form the "up" edge, third is
   the bottom of the descent.
@@ -110,7 +115,7 @@ Layout guidelines:
   - `interactive` → `altar`, `fountain`, `throne`, `statue`
   - `treasure` → `column` or `altar`
   - `empty` → optionally `rubble` or nothing
-  - `is_trapped` → add `pit-trap` on the **gm** layer
+  - `is_trapped` → add `trap` on the **gm** layer
 - **Label every room with its number.** Add one gm-layer note per room whose
   `text` is the room's topology id (`"1"`, `"12"`, `"24"`), placed in the
   room's top-left interior cell so it doesn't sit on a centered object. The

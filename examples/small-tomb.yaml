@@ -23,7 +23,7 @@ layers:
       - { id: d1, type: door,        at: [6,  2], facing: ew }   # entry → hall
       - { id: d2, type: door,        at: [14, 2], facing: ew }   # hall → chamber
       - { id: d3, type: secret-door, at: [18, 8], facing: ns }   # chamber → vault
-      - { id: t1, type: pit-trap,    at: [10, 2] }
+      - { id: t1, type: trap,        at: [10, 2] }
       - { id: a1, type: altar,       at: [19, 1] }
       - { id: f1, type: fountain,    at: [16, 5] }
       - { id: s1, type: stairs-down, at: [2,  4], facing: s }

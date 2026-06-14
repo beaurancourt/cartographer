@@ -130,6 +130,13 @@ pub enum DoorKind {
     Door,
     SecretDoor,
     LockedDoor,
+    /// A window: a glazed opening in the wall. Drawn as a small box
+    /// straddling the wall line with a perpendicular mullion. Visible in
+    /// both views (architecture, not a secret).
+    Window,
+    /// An arrow slit / arrow loop: a narrow defensive opening. Drawn as two
+    /// heavy bars tapering to a slit at the centre. Visible in both views.
+    ArrowSlit,
 }
 
 /// Stairs defined by three anchors. Anchors `[0]` and `[1]` are the two
@@ -193,7 +200,7 @@ fn default_path_width() -> C { C::cells(1) }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MapObject {
     pub id: String,
-    /// Symbol id, e.g. `door`, `secret-door`, `pit-trap`, `stairs-down`.
+    /// Symbol id, e.g. `door`, `secret-door`, `trap`, `stairs-down`.
     #[serde(rename = "type")]
     pub kind: String,
     /// Cell coordinate of the cell the object occupies (its symbol is drawn

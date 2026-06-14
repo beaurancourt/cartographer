@@ -23,7 +23,7 @@ export type Layer = {
 export type Door = {
   id: string;
   segment: [[number, number], [number, number]];
-  kind?: "door" | "secret-door" | "locked-door";
+  kind?: "door" | "secret-door" | "locked-door" | "window" | "arrow-slit";
 };
 
 export type Stairs = {
@@ -385,7 +385,7 @@ export function mapBbox(map: Map): { x: number; y: number; w: number; h: number 
 /// Object kinds we expose as toolbar tools. Doors and stairs aren't here —
 /// they're their own anchor-based tools (see DOOR_TOOLS / "stairs" tool).
 export const OBJECT_TOOLS = [
-  { id: "pit-trap", label: "Pit trap" },
+  { id: "trap", label: "Trap" },
   { id: "altar", label: "Altar" },
   { id: "fountain", label: "Fountain" },
   { id: "column", label: "Column" },
@@ -399,9 +399,11 @@ export const OBJECT_TOOLS = [
 export type ObjectTool = (typeof OBJECT_TOOLS)[number]["id"];
 
 export const DOOR_TOOLS = [
-  { id: "door", label: "Door", kind: "door" as const },
-  { id: "secret-door", label: "Secret door", kind: "secret-door" as const },
-  { id: "locked-door", label: "Locked door", kind: "locked-door" as const },
+  { id: "door", label: "Door", kind: "door" as const, hint: "D" },
+  { id: "secret-door", label: "Secret door", kind: "secret-door" as const, hint: "S" },
+  { id: "locked-door", label: "Locked door", kind: "locked-door" as const, hint: "L" },
+  { id: "window", label: "Window", kind: "window" as const, hint: "O" },
+  { id: "arrow-slit", label: "Arrow slit", kind: "arrow-slit" as const, hint: "Y" },
 ] as const;
 
 export type DoorTool = (typeof DOOR_TOOLS)[number]["id"];
